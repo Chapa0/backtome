@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
-class PageShare extends StatefulWidget {
-  final Color backgroundColor;
+import 'package:image_picker/image_picker.dart';
 
-  PageShare({required this.backgroundColor});
+class PageShare extends StatefulWidget {
+
+  PageShare({Key? key}) : super(key: key);
 
   @override
   _PageShareState createState() => _PageShareState();
@@ -48,9 +48,9 @@ class _PageShareState extends State<PageShare> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.backgroundColor,
+      backgroundColor: Color(0xFF1B396A),
       appBar: AppBar(
-        backgroundColor: widget.backgroundColor,
+        backgroundColor: Color(0xFF1B396A),
         title: Text("Compartir objeto"),
         elevation: 0,
       ),

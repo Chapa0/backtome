@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter_backtome/views/pageUser.dart';
+import 'package:flutter_backtome/views/usuarios/pageUser.dart';
 
 class PageHome extends StatefulWidget {
-  final Color backgroundColor;
 
   // Constructor que recibe el color de fondo
-  PageHome({required this.backgroundColor});
+  PageHome({Key? key}) : super(key: key);
 
   @override
   _PageHomeState createState() => _PageHomeState();
@@ -57,8 +55,7 @@ class _PageHomeState extends State<PageHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget
-          .backgroundColor, // Usa el color de fondo que se pasó por el constructor
+      backgroundColor: Color(0xFF1B396A),
       body: Column(
         children: [
           SizedBox(height: 30),
@@ -70,9 +67,7 @@ class _PageHomeState extends State<PageHome> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => PageUser(
-                          background: widget.backgroundColor,
-                          institucional: _institutionalColor)),
+                      builder: (context) => PageUser()),
                 );
               },
               child: Row(

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PageUser extends StatefulWidget {
-  final Color background;
-  final Color institucional;
 
   //Constructor
-  PageUser({required this.background, required this.institucional});
+  PageUser({Key? key}) : super(key: key);
 
   @override
   _PageUserState createState() => _PageUserState();
@@ -50,7 +48,7 @@ class _PageUserState extends State<PageUser> {
           Expanded(
             child: Container(
               padding: EdgeInsets.all(16),
-              color: widget.institucional,
+              color: Color(0xFF1B396A),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

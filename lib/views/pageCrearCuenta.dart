@@ -1,46 +1,70 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_backtome/views/pageAppGeneral.dart';
-//Importar librerías para autenticación
+import 'package:flutter_backtome/views/usuarios/pageAppGeneral.dart';
+// Importar librerías para autenticación y Firestore
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'administradorBD/usuariosBD.dart'; // Importa la clase Usuario
 
 class PageCrearCuenta extends StatefulWidget {
   final Color background;
-  //Constructor
+
+  // Constructor
   PageCrearCuenta({required this.background});
+
   @override
-  // TODO: implement createElement
   _PageCrearCuentaState createState() => _PageCrearCuentaState();
 }
 
 class _PageCrearCuentaState extends State<PageCrearCuenta> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  bool mantenerSesion = false;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidosController = TextEditingController();
   final TextEditingController _correoController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
-  Future<void> _signUp() async {
+  Future<void> _signUp(BuildContext context, {required bool isAdmin}) async {
     if (_passwordController.text == _confirmPasswordController.text) {
       try {
-        UserCredential userCredential =
-            await _auth.createUserWithEmailAndPassword(
+        // Crea la cuenta en Firebase Authentication
+        UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
           email: _correoController.text.trim(),
           password: _passwordController.text.trim(),
         );
-        print("User registered: ${userCredential.user?.email}");
 
+        // Obtiene el UID del usuario recién registrado
+        String uid = userCredential.user!.uid;
+
+        // Crea una instancia de Usuario con los datos ingresados
+        Usuario newUser = Usuario(
+          id: uid,
+          nombre: _nombreController.text.trim(),
+          apellido: _apellidosController.text.trim(),
+          correo: _correoController.text.trim(),
+          urlimagen: '', // Puedes incluir la URL de una imagen si existe
+        );
+
+        // Guarda los datos del usuario en Firestore
+        await _firestore.collection('usuarios').doc(uid).set(newUser.toMap());
+
+        print("Usuario registrado y datos guardados en Firestore: ${userCredential.user?.email}");
+
+        // Guarda los datos en SharedPreferences si el usuario marcó "Mantener sesión iniciada"
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userRole', isAdmin ? 'admin' : 'user');
         // Navega a la pantalla principal
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => PageAppGeneral(background: widget.background),
+            builder: (context) => PageAppGeneral(),
           ),
         );
       } catch (e) {
-        print("Error: $e");
+        print("Error al crear la cuenta: $e");
       }
     } else {
       print("Las contraseñas no coinciden");
@@ -49,14 +73,22 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
+
       backgroundColor: widget.background,
       appBar: AppBar(
-        title: Text('Crear cuenta'),
-        //backgroundColor: Colors.black,
         backgroundColor: widget.background,
+        elevation: 0,
+        actions: [
+          // Botón discreto de acceso de administrador
+          IconButton(
+            icon: Icon(Icons.admin_panel_settings, color: Colors.blue),
+            onPressed: () => _showAdminLoginDialog(context),
+            tooltip: 'Acceso administrador',
+          ),
+        ],
       ),
-      //body: SingleChildScrollView(
       resizeToAvoidBottomInset: true,
       body: SingleChildScrollView(
         padding: EdgeInsets.symmetric(horizontal: 30),
@@ -73,7 +105,7 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
               ),
             ),
             Text(
-              'Y conmencemos a ayudar',
+              'Y comencemos a ayudar',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
@@ -102,12 +134,12 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
               ),
             ),
             SizedBox(height: 15),
-            // Campo Nombre de usuario
+            // Campo Correo Electrónico
             TextFormField(
               controller: _correoController,
               decoration: InputDecoration(
                 labelText: 'Correo Electrónico',
-                helperText: 'Ingresa un correo electrónico valido',
+                helperText: 'Ingresa un correo electrónico válido',
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white,
@@ -139,26 +171,11 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
             ),
             SizedBox(height: 15),
             // Checkbox para mantener la sesión iniciada
-            Row(
-              children: [
-                Checkbox(
-                  value: mantenerSesion,
-                  onChanged: (value) {
-                    setState(() {
-                      mantenerSesion = value ?? false;
-                    });
-                  },
-                ),
-                Text(
-                  'Mantener inicio de sesión abierto',
-                  style: TextStyle(color: Colors.grey[700]),
-                ),
-              ],
-            ),
+
             SizedBox(height: 30),
             // Botón Crear cuenta
             ElevatedButton(
-              onPressed: _signUp,
+              onPressed: () => _signUp(context, isAdmin: false),
               style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(vertical: 15, horizontal: 100),
                   backgroundColor: Colors.blue[800],
@@ -176,4 +193,51 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
       ),
     );
   }
+
+  void _showAdminLoginDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        TextEditingController _adminPasswordController = TextEditingController();
+
+        return AlertDialog(
+          title: Text('Acceso de administrador'),
+          content: TextField(
+            controller: _adminPasswordController,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: 'Contraseña de administrador',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                // Cerrar el diálogo
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Verificar la contraseña de administrador
+                if (_adminPasswordController.text == 'admin') {
+                  // Iniciar sesión como administrador
+                  _signUp(context, isAdmin: true);
+                  Navigator.of(context).pop();
+                } else {
+                  // Mostrar mensaje de error
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Contraseña de administrador incorrecta')),
+                  );
+                }
+              },
+              child: Text('Ingresar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 }

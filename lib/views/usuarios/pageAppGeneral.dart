@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_backtome/views/pageHome.dart';
-import 'package:flutter_backtome/views/pageRegister.dart';
-import 'package:flutter_backtome/views/pageSearch.dart';
-import 'package:flutter_backtome/views/pageUser.dart';
+import 'package:flutter_backtome/views/usuarios/pageHome.dart';
+import 'package:flutter_backtome/views/usuarios/pageRegister.dart';
+import 'package:flutter_backtome/views/usuarios/pageSearch.dart';
+import 'package:flutter_backtome/views/usuarios/pageUser.dart';
 
 class PageAppGeneral extends StatefulWidget {
-  final Color background;
-  PageAppGeneral({required this.background});
+  PageAppGeneral({Key? key}) : super(key: key);
   @override
   _PageAppGeneralState createState() => _PageAppGeneralState();
 }
@@ -25,18 +24,17 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
     super.initState();
     // Inicializar la lista de páginas en el initState
     _paginas = [
-      PageHome(backgroundColor: widget.background),
-      PageSearch(backgroundColor: widget.background),
-      PageRegister(backgroundColor: widget.background),
-      PageUser(
-          background: widget.background, institucional: _institutionalColor),
+      PageHome(),
+      PageSearch(),
+      PageRegister(),
+      PageUser(),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.background, // Fondo variable
+      backgroundColor: Colors.white,
       body: _paginas[_selectedItems],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex:
@@ -47,7 +45,7 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
           });
         },
         // Colores de la barra de navegación
-        backgroundColor: widget.background,
+        backgroundColor: Colors.white,
         selectedItemColor: _institutionalColor,
         unselectedItemColor: Colors.grey,
         items: [

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_backtome/views/pageUser.dart';
+import 'package:flutter_backtome/views/usuarios/pageUser.dart';
 
 class PageSearch extends StatefulWidget {
-  final Color backgroundColor;
 
   // Constructor que recibe el color de fondo
-  PageSearch({required this.backgroundColor});
+  PageSearch({Key? key}) : super(key: key);
 
   @override
   _PageSearchState createState() => _PageSearchState();
@@ -56,7 +55,7 @@ class _PageSearchState extends State<PageSearch> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.backgroundColor,
+      backgroundColor: Color(0xFF1B396A),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -69,9 +68,7 @@ class _PageSearchState extends State<PageSearch> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => PageUser(
-                          background: widget.backgroundColor,
-                          institucional: _institutionalColor)),
+                      builder: (context) => PageUser()),
                 );
               },
               child: Row(

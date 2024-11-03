@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'pageShare.dart';
 
 class PageRegister extends StatelessWidget {
-  final Color backgroundColor;
 
-  PageRegister({required this.backgroundColor});
+
+  PageRegister({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: Color(0xFF1B396A),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -26,7 +26,7 @@ class PageRegister extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (context) =>
-                          PageShare(backgroundColor: backgroundColor)),
+                          PageShare()),
                 );
               },
               child: Column(
@@ -52,7 +52,7 @@ class PageRegister extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                             builder: (context) =>
-                                PageShare(backgroundColor: backgroundColor)),
+                                PageShare()),
                       );
                     },
                     style: ElevatedButton.styleFrom(
