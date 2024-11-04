@@ -1,17 +1,14 @@
 plugins {
     id "com.android.application"
-    // START: FlutterFire Configuration
+    // Plugin de Google Services para Firebase
     id 'com.google.gms.google-services'
-    // END: FlutterFire Configuration
     id "kotlin-android"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
-    id "dev.flutter.flutter-gradle-plugin"
+    id "dev.flutter.flutter-gradle-plugin" // Plugin de Flutter
 }
 
 android {
     namespace = "com.example.flutter_backtome"
     compileSdkVersion 34
-    // ndkVersion = flutter.ndkVersion (puedes eliminar esta línea si no usas NDK)
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -32,8 +29,7 @@ android {
 
     buildTypes {
         release {
-            // Agrega tu propia configuración de firma para la compilación de lanzamiento.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.debug // Configuración de firma para compilación de lanzamiento
         }
     }
 }
@@ -41,3 +37,6 @@ android {
 flutter {
     source "../.."
 }
+
+// Aplica el plugin de Google Services al final del archivo
+apply plugin: 'com.google.gms.google-services'

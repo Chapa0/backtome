@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/views/usuarios/pageAppGeneral.dart';
 // Importar librerías para autenticación y Firestore
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/usuarioRegistrado.dart';
 import 'administradorBD/usuariosBD.dart'; // Importa la clase Usuario
 
 class PageCrearCuenta extends StatefulWidget {
@@ -47,21 +51,28 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
           correo: _correoController.text.trim(),
           urlimagen: '', // Puedes incluir la URL de una imagen si existe
         );
-
+        final authState = Provider.of<AuthState>(context, listen: false);
         // Guarda los datos del usuario en Firestore
         await _firestore.collection('usuarios').doc(uid).set(newUser.toMap());
 
-        print("Usuario registrado y datos guardados en Firestore: ${userCredential.user?.email}");
+        authState.setUser(newUser);
+
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        final usuarioMap = newUser.toMap();
+        usuarioMap['id'] = newUser.id;
+
+        final String usuarioJson = json.encode(usuarioMap);
+        await prefs.setString('userData', usuarioJson);
 
         // Guarda los datos en SharedPreferences si el usuario marcó "Mantener sesión iniciada"
-        SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('userRole', isAdmin ? 'admin' : 'user');
         // Navega a la pantalla principal
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) => PageAppGeneral(),
           ),
+          (route) => false,
         );
       } catch (e) {
         print("Error al crear la cuenta: $e");

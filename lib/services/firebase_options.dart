@@ -57,6 +57,6 @@ class DefaultFirebaseOptions {
     appId: '1:374814612036:android:406c743104b84be8637a11',
     messagingSenderId: '374814612036',
     projectId: 'back-to-me-48f22',
-    storageBucket: 'back-to-me-48f22.appspot.com',
+    storageBucket: 'back-to-me-48f22.firebasestorage.app',
   );
 }

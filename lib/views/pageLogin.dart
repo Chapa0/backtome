@@ -44,18 +44,20 @@ class _PageLoginState extends State<PageLogin> {
 
       // Navega a la pantalla correspondiente
       if (isAdmin) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           contextLocal,
           MaterialPageRoute(
             builder: (context) => AdminHomePage(),
           ),
+          (route) => false,
         );
       } else {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           contextLocal,
           MaterialPageRoute(
             builder: (context) => PageAppGeneral(),
           ),
+          (route) => false,
         );
       }
     } catch (e) {
