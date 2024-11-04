@@ -2,11 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_backtome/views/usuarios/registrarObjetoPerdido.dart';
 import 'package:provider/provider.dart';
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
 import '../administradorBD/usuariosBD.dart';
+import 'ObjetoDetalles.dart';
 import 'UserAccountPage.dart';
 
 class PageAppGeneral extends StatefulWidget {
@@ -94,7 +96,7 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
       }
     } catch (error) {
       print("Error al cargar los objetos perdidos desde Firestore: $error");
-      // Puedes mostrar un SnackBar o algún mensaje al usuario
+      // Mostrar SnackBar en caso de error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al cargar los objetos perdidos.')),
       );
@@ -206,32 +208,92 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
   }
 
   // Widget para construir cada elemento de la lista
+// Widget para construir cada elemento de la lista
   Widget _buildLostObjectItem(LostObject lostObject) {
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-      child: ListTile(
-        leading: lostObject.imagenUrl.isNotEmpty
-            ? Image.network(
-          lostObject.imagenUrl,
-          width: 50,
-          height: 50,
-          fit: BoxFit.cover,
-        )
-            : Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
-        title: Text(lostObject.tipoObjeto),
-        subtitle: Column(
+    return GestureDetector(
+      onTap: () {
+        // Navegar a la pantalla de detalles al tocar el card
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LostObjectDetailPage(lostObject: lostObject),
+          ),
+        );
+      },
+      child: Card(
+        margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        elevation: 4.0,
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Descripción: ${lostObject.descripcion}'),
-            Text('Encontrado en: ${lostObject.lugarEncontrado}'),
-            Text('Fecha: ${_formatDate(lostObject.timestamp)}'),
+            // Imagen del objeto perdido
+            lostObject.imagenUrl.isNotEmpty
+                ? ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12.0)),
+              child: CachedNetworkImage(
+                imageUrl: lostObject.imagenUrl,
+                width: double.infinity,
+                height: 200, // Altura fija para la imagen
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  width: double.infinity,
+                  height: 200,
+                  color: Colors.grey[300],
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  width: double.infinity,
+                  height: 200,
+                  color: Colors.grey[300],
+                  child: Icon(Icons.error, color: Colors.red, size: 40),
+                ),
+              ),
+            )
+                : Container(
+              width: double.infinity,
+              height: 200,
+              color: Colors.grey[300],
+              child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey[700]),
+            ),
+            // Datos del objeto perdido
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lostObject.tipoObjeto,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Descripción: ${lostObject.descripcion}',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Encontrado en: ${lostObject.lugarEncontrado}',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Fecha: ${_formatDate(lostObject.timestamp)}',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            // Eliminamos el botón "Ver Detalles"
+            // Si deseas añadir algún otro elemento, puedes hacerlo aquí
           ],
         ),
-        isThreeLine: true,
-        trailing: Icon(Icons.arrow_forward_ios),
-        onTap: () {
-          // Acción al tocar el elemento, por ejemplo, mostrar detalles
-        },
       ),
     );
   }
@@ -312,31 +374,143 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
             leading: Icon(Icons.add_box),
             title: Text('Objetos perdidos agregados'),
             onTap: () {
-              // Acción al seleccionar esta opción
               Navigator.pop(context); // Cerrar el cajón
-              // Puedes navegar a otra página que muestre los objetos agregados por el usuario
+              // Navegar a la página correspondiente
             },
           ),
           ListTile(
             leading: Icon(Icons.assignment_turned_in),
             title: Text('Objetos reclamados'),
             onTap: () {
-              // Acción al seleccionar esta opción
               Navigator.pop(context); // Cerrar el cajón
-              // Navegar a la página de objetos reclamados
+              // Navegar a la página correspondiente
             },
           ),
           ListTile(
             leading: Icon(Icons.map),
             title: Text('Mapa de entrega de objetos perdidos'),
             onTap: () {
-              // Acción al seleccionar esta opción
               Navigator.pop(context); // Cerrar el cajón
-              // Navegar a la página del mapa
+              // Navegar a la página correspondiente
             },
           ),
         ],
       ),
+    );
+  }
+
+  // Función para mostrar detalles en un diálogo
+  void _showLostObjectDetails(LostObject lostObject) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          insetPadding: EdgeInsets.all(16.0), // Margen alrededor del diálogo
+          child: SizedBox(
+            width: double.infinity,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min, // Ocupa el mínimo espacio necesario
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Imagen del objeto perdido
+                  lostObject.imagenUrl.isNotEmpty
+                      ? ClipRRect(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(12.0)),
+                    child: CachedNetworkImage(
+                      imageUrl: lostObject.imagenUrl,
+                      width: double.infinity,
+                      height: 200, // Altura fija para la imagen
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: Colors.grey[300],
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: Colors.grey[300],
+                        child: Icon(Icons.error, color: Colors.red, size: 40),
+                      ),
+                    ),
+                  )
+                      : Container(
+                    width: double.infinity,
+                    height: 200,
+                    color: Colors.grey[300],
+                    child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey[700]),
+                  ),
+                  // Datos del objeto perdido
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Descripción:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          lostObject.descripcion,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Encontrado en:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          lostObject.lugarEncontrado,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Fecha:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          _formatDate(lostObject.timestamp),
+                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Botón para cerrar el diálogo
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16.0, bottom: 16.0),
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Cerrar el diálogo
+                        },
+                        child: Text(
+                          'Cerrar',
+                          style: TextStyle(color: _primaryColor),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
