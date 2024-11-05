@@ -12,6 +12,13 @@ class LostObject {
   final String uidEncontrado;
   final DateTime timestamp;
 
+  // Nuevos campos para la reclamación
+  String? uidReclamante;
+  String? nombreReclamante;
+  String? estadoReclamacion;
+  String? textoReclamacion;
+  String? imagenReclamacionUrl;
+
   LostObject({
     required this.id,
     required this.descripcion,
@@ -21,6 +28,11 @@ class LostObject {
     required this.nombreEncontrado,
     required this.uidEncontrado,
     required this.timestamp,
+    this.uidReclamante,
+    this.nombreReclamante,
+    this.estadoReclamacion,
+    this.textoReclamacion,
+    this.imagenReclamacionUrl,
   });
 
   factory LostObject.fromMap(Map<String, dynamic> data, String documentId) {
@@ -33,6 +45,28 @@ class LostObject {
       nombreEncontrado: data['nombreEncontrado'] ?? '',
       uidEncontrado: data['uidEncontrado'] ?? '',
       timestamp: (data['timestamp'] as Timestamp).toDate(),
+      uidReclamante: data['uidReclamante'],
+      nombreReclamante: data['nombreReclamante'],
+      estadoReclamacion: data['estadoReclamacion'],
+      textoReclamacion: data['textoReclamacion'],
+      imagenReclamacionUrl: data['imagenReclamacionUrl'],
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'descripcion': descripcion,
+      'tipoObjeto': tipoObjeto,
+      'lugarEncontrado': lugarEncontrado,
+      'imagenUrl': imagenUrl,
+      'nombreEncontrado': nombreEncontrado,
+      'uidEncontrado': uidEncontrado,
+      'timestamp': timestamp,
+      'uidReclamante': uidReclamante,
+      'nombreReclamante': nombreReclamante,
+      'estadoReclamacion': estadoReclamacion,
+      'textoReclamacion': textoReclamacion,
+      'imagenReclamacionUrl': imagenReclamacionUrl,
+    };
   }
 }
