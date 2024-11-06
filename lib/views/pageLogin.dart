@@ -47,7 +47,7 @@ class _PageLoginState extends State<PageLogin> {
         Navigator.pushAndRemoveUntil(
           contextLocal,
           MaterialPageRoute(
-            builder: (context) => AdminHomePage(),
+            builder: (context) => PageAppGeneralAdmin(),
           ),
           (route) => false,
         );
@@ -208,7 +208,7 @@ class _PageLoginState extends State<PageLogin> {
             ElevatedButton(
               onPressed: () {
                 // Verificar la contraseña de administrador
-                if (_adminPasswordController.text == 'admin') {
+                if (_adminPasswordController.text == '1234567') {
                   // Iniciar sesión como administrador
                   _signIn(context, isAdmin: true);
                   Navigator.of(context).pop();

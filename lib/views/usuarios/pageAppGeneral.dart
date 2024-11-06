@@ -211,8 +211,6 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         _rangeEnd = _getEndOfDay(start);     // Si no hay fin, usar el inicio
       }
 
-      _isCalendarVisible = false;
-      _animationController.reverse(); // Contraer el calendario
     });
     _fetchLostObjects(isRefresh: true); // Recargar los objetos con el nuevo filtro
   }
@@ -403,36 +401,62 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Imagen del objeto perdido
-            lostObject.imagenUrl.isNotEmpty
-                ? ClipRRect(
-              borderRadius:
-              BorderRadius.vertical(top: Radius.circular(12.0)),
-              child: CachedNetworkImage(
-                imageUrl: lostObject.imagenUrl,
-                width: double.infinity,
-                height: 200, // Altura fija para la imagen
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
+            // Envolvemos la imagen y el overlay en un Stack
+            Stack(
+              children: [
+                // Imagen del objeto perdido
+                lostObject.imagenUrl.isNotEmpty
+                    ? ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12.0)),
+                  child: CachedNetworkImage(
+                    imageUrl: lostObject.imagenUrl,
+                    width: double.infinity,
+                    height: 200, // Altura fija para la imagen
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      width: double.infinity,
+                      height: 200,
+                      color: Colors.grey[300],
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      width: double.infinity,
+                      height: 200,
+                      color: Colors.grey[300],
+                      child: Icon(Icons.error, color: Colors.red, size: 40),
+                    ),
+                  ),
+                )
+                    : Container(
                   width: double.infinity,
                   height: 200,
                   color: Colors.grey[300],
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey[700]),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  width: double.infinity,
-                  height: 200,
-                  color: Colors.grey[300],
-                  child: Icon(Icons.error,
-                      color: Colors.red, size: 40),
-                ),
-              ),
-            )
-                : Container(
-              width: double.infinity,
-              height: 200,
-              color: Colors.grey[300],
-              child: Icon(Icons.image_not_supported,
-                  size: 50, color: Colors.grey[700]),
+                // Overlay amarillo si el objeto está en proceso de reclamación
+                if (lostObject.estadoReclamacion == 'Pendiente')
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: Colors.yellow,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12.0),
+                          bottomRight: Radius.circular(8.0),
+                        ),
+                      ),
+                      child: Text(
+                        'En proceso de reclamación',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             // Datos del objeto perdido
             Padding(

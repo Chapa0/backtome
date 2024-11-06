@@ -79,7 +79,7 @@ class MyApp extends StatelessWidget {
 
       switch (userRole) {
         case 'admin':
-          return  AdminHomePage();
+          return  PageAppGeneralAdmin();
         case 'user':
           return PageAppGeneral();
         default:

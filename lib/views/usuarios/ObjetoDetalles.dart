@@ -5,9 +5,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
+import '../administradorBD/reclamaciones.dart';
 import '../administradorBD/usuariosBD.dart';
 import 'fullscreen_image_detail.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -78,8 +78,21 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
     }
 
     // Obtener información del usuario actual
-    final authState = Provider.of<AuthState>(context);
+    final authState = Provider.of<AuthState>(context, listen: false);
     final Usuario? currentUser = authState.user;
+
+    // Crear una nueva reclamación
+    Reclamacion nuevaReclamacion = Reclamacion(
+      uidReclamante: currentUser!.id,
+      nombreReclamante: currentUser.nombre,
+      estadoReclamacion: 'Pendiente',
+      textoReclamacion: _textoController.text.trim(),
+      imagenReclamacionUrl: imageUrl,
+    );
+
+    // Añadir la reclamación a la lista existente
+    List<Reclamacion> nuevasReclamaciones = List.from(widget.lostObject.reclamaciones)
+      ..add(nuevaReclamacion);
 
     // Actualizar el objeto en Firestore
     try {
@@ -87,11 +100,8 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
           .collection('objetos_perdidos')
           .doc(widget.lostObject.id)
           .update({
-        'uidReclamante': currentUser!.id,
-        'nombreReclamante': currentUser.nombre,
+        'reclamaciones': nuevasReclamaciones.map((r) => r.toMap()).toList(),
         'estadoReclamacion': 'Pendiente',
-        'textoReclamacion': _textoController.text.trim(),
-        'imagenReclamacionUrl': imageUrl,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -117,15 +127,19 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
     super.dispose();
   }
 
+  bool _hasUserClaimed() {
+    final authState = Provider.of<AuthState>(context, listen: false);
+    final Usuario? currentUser = authState.user;
+    return widget.lostObject.reclamaciones.any((reclamacion) => reclamacion.uidReclamante == currentUser?.id);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Obtener el usuario actual
-    final User? currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.lostObject.tipoObjeto,
+          "Detalles del objeto",
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: _primaryColor,
@@ -272,8 +286,7 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
             ),
             SizedBox(height: 16),
             // Formulario de reclamación
-            if (widget.lostObject.uidReclamante == null ||
-                widget.lostObject.uidReclamante == currentUser?.uid)
+            if (!_hasUserClaimed())
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Form(
@@ -343,11 +356,11 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                 ),
               )
             else
-            // Mostrar mensaje si el objeto ya ha sido reclamado por otro usuario
+            // Mostrar mensaje si el usuario ya ha reclamado el objeto
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  'Este objeto ya ha sido reclamado.',
+                  'Ya has enviado una reclamación para este objeto.',
                   style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                 ),
               ),
