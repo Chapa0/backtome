@@ -77,7 +77,6 @@ class MyApp extends StatelessWidget {
 
   Widget _selectHomeScreen() {
 
-      // Si no es web, sigue la lógica existente basada en el rol del usuario
       switch (userRole) {
         case 'admin':
           return  AdminHomePage();

@@ -1,10 +1,9 @@
-// page_app_general.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_backtome/views/usuarios/registrarObjetoPerdido.dart';
 import 'package:provider/provider.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
 import '../administradorBD/usuariosBD.dart';
@@ -16,7 +15,8 @@ class PageAppGeneral extends StatefulWidget {
   _PageAppGeneralState createState() => _PageAppGeneralState();
 }
 
-class _PageAppGeneralState extends State<PageAppGeneral> {
+class _PageAppGeneralState extends State<PageAppGeneral>
+    with SingleTickerProviderStateMixin {
   final Color _primaryColor = Color(0xFF1B396A);
 
   // Lista para almacenar los objetos perdidos
@@ -31,9 +31,29 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
   DocumentSnapshot? _lastDocument; // Último documento cargado
   final int _perPage = 20; // Número de objetos a cargar por página
 
+  // Variables para el filtrado por fecha
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  DateTime? _rangeStart;
+  DateTime? _rangeEnd;
+  CalendarFormat _calendarFormat = CalendarFormat.month; // Formato inicial
+
+  // Controladores para el calendario
+  bool _isCalendarVisible = false; // Controla la visibilidad del calendario
+
+  // AnimationController para el calendario
+  late AnimationController _animationController;
+
   @override
   void initState() {
     super.initState();
+
+    // Inicializar el AnimationController
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 300),
+    );
+
     _fetchLostObjects();
 
     // Añadir un listener al controlador de desplazamiento
@@ -49,13 +69,23 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
 
   @override
   void dispose() {
+    // Disponer del AnimationController
+    _animationController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  // Función para obtener los primeros 20 objetos perdidos
-  Future<void> _fetchLostObjects() async {
+  // Función para obtener los objetos perdidos con filtrado por fecha
+  Future<void> _fetchLostObjects({bool isRefresh = false}) async {
     if (_isLoading) return;
+
+    if (isRefresh) {
+      setState(() {
+        _lostObjects.clear();
+        _lastDocument = null;
+        _hasMore = true;
+      });
+    }
 
     setState(() {
       _isLoading = true;
@@ -66,6 +96,13 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
           .collection('objetos_perdidos')
           .orderBy('timestamp', descending: true)
           .limit(_perPage);
+
+      // Aplicar filtrado por rango de fechas si está seleccionado
+      if (_rangeStart != null && _rangeEnd != null) {
+        query = query
+            .where('timestamp', isGreaterThanOrEqualTo: _rangeStart)
+            .where('timestamp', isLessThanOrEqualTo: _rangeEnd);
+      }
 
       if (_lastDocument != null) {
         query = query.startAfterDocument(_lastDocument!);
@@ -109,12 +146,52 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
 
   // Función para refrescar la lista (pull to refresh)
   Future<void> _refreshLostObjects() async {
+    await _fetchLostObjects(isRefresh: true);
+  }
+
+  // Función para obtener el inicio del día
+  DateTime _getStartOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 0, 0, 0, 0);
+  }
+
+// Función para obtener el fin del día
+  DateTime _getEndOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+  }
+
+
+  // Funciones del calendario
+  void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     setState(() {
-      _lostObjects.clear();
-      _lastDocument = null;
-      _hasMore = true;
+      _selectedDay = selectedDay;
+      _focusedDay = focusedDay;
+      _rangeStart = _getStartOfDay(selectedDay); // Inicio del día seleccionado
+      _rangeEnd = _getEndOfDay(selectedDay);     // Fin del día seleccionado
+      _isCalendarVisible = false;
+      _animationController.reverse(); // Contraer el calendario
     });
-    await _fetchLostObjects();
+    _fetchLostObjects(isRefresh: true); // Recargar los objetos con el nuevo filtro
+  }
+
+  void _onRangeSelected(DateTime? start, DateTime? end, DateTime focusedDay) {
+    setState(() {
+      _selectedDay = null; // Limpiamos la selección individual
+      _focusedDay = focusedDay;
+
+      if (start != null) {
+        _rangeStart = _getStartOfDay(start); // Inicio del primer día del rango
+      }
+
+      if (end != null) {
+        _rangeEnd = _getEndOfDay(end);       // Fin del último día del rango
+      } else if (start != null) {
+        _rangeEnd = _getEndOfDay(start);     // Si no hay fin, usar el inicio
+      }
+
+      _isCalendarVisible = false;
+      _animationController.reverse(); // Contraer el calendario
+    });
+    _fetchLostObjects(isRefresh: true); // Recargar los objetos con el nuevo filtro
   }
 
   @override
@@ -130,34 +207,57 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
         actions: [
           TextButton.icon(
             onPressed: () {
-              // Acción del botón de filtrar, por ahora sin funcionalidad
+              setState(() {
+                _isCalendarVisible = !_isCalendarVisible;
+                if (_isCalendarVisible) {
+                  _animationController.forward(); // Expandir el calendario
+                } else {
+                  _animationController.reverse(); // Contraer el calendario
+                }
+              });
             },
             icon: Icon(Icons.filter_list, color: Colors.white),
-            label:
-            Text('Recientes', style: TextStyle(color: Colors.white)),
+            label: Text(
+              _rangeStart != null && _rangeEnd != null
+                  ? _rangeStart!.year == _rangeEnd!.year &&
+                  _rangeStart!.month == _rangeEnd!.month &&
+                  _rangeStart!.day == _rangeEnd!.day
+                  ? _formatDate(_rangeStart!) // Si es el mismo día, muestra una fecha
+                  : '${_formatDate(_rangeStart!)} - ${_formatDate(_rangeEnd!)}' // Si es un rango, muestra ambas fechas
+                  : 'Recientes',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
       // Cuerpo de la pantalla
-      body: RefreshIndicator(
-        onRefresh: _refreshLostObjects,
-        child: _lostObjects.isEmpty
-            ? _isLoading
-            ? Center(child: CircularProgressIndicator())
-            : Center(child: Text('No hay objetos perdidos.'))
-            : ListView.builder(
-          controller: _scrollController,
-          itemCount: _lostObjects.length + 1, // +1 para el indicador
-          itemBuilder: (context, index) {
-            if (index < _lostObjects.length) {
-              final lostObject = _lostObjects[index];
-              return _buildLostObjectItem(lostObject);
-            } else {
-              // Mostrar el indicador de carga
-              return _buildLoadingIndicator();
-            }
-          },
-        ),
+      body: Column(
+        children: [
+          // Calendario animado
+          _buildAnimatedCalendar(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshLostObjects,
+              child: _lostObjects.isEmpty
+                  ? _isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : Center(child: Text('No hay objetos perdidos.'))
+                  : ListView.builder(
+                controller: _scrollController,
+                itemCount: _lostObjects.length + (_hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index < _lostObjects.length) {
+                    final lostObject = _lostObjects[index];
+                    return _buildLostObjectItem(lostObject);
+                  } else {
+                    // Mostrar el indicador de carga
+                    return _buildLoadingIndicator();
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
       ),
       // BottomAppBar con elementos interactivos
       bottomNavigationBar: BottomAppBar(
@@ -207,8 +307,9 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
     );
   }
 
+
+
   // Widget para construir cada elemento de la lista
-// Widget para construir cada elemento de la lista
   Widget _buildLostObjectItem(LostObject lostObject) {
     return GestureDetector(
       onTap: () {
@@ -232,7 +333,8 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
             // Imagen del objeto perdido
             lostObject.imagenUrl.isNotEmpty
                 ? ClipRRect(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12.0)),
+              borderRadius:
+              BorderRadius.vertical(top: Radius.circular(12.0)),
               child: CachedNetworkImage(
                 imageUrl: lostObject.imagenUrl,
                 width: double.infinity,
@@ -248,7 +350,8 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
                   width: double.infinity,
                   height: 200,
                   color: Colors.grey[300],
-                  child: Icon(Icons.error, color: Colors.red, size: 40),
+                  child: Icon(Icons.error,
+                      color: Colors.red, size: 40),
                 ),
               ),
             )
@@ -256,7 +359,8 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
               width: double.infinity,
               height: 200,
               color: Colors.grey[300],
-              child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey[700]),
+              child: Icon(Icons.image_not_supported,
+                  size: 50, color: Colors.grey[700]),
             ),
             // Datos del objeto perdido
             Padding(
@@ -284,14 +388,12 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Fecha: ${_formatDate(lostObject.timestamp)}',
+                    'Fecha: ${_formatDateTime(lostObject.timestamp)}',
                     style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                 ],
               ),
             ),
-            // Eliminamos el botón "Ver Detalles"
-            // Si deseas añadir algún otro elemento, puedes hacerlo aquí
           ],
         ),
       ),
@@ -311,8 +413,13 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
   }
 
   // Formatear la fecha para mostrarla en la lista
-  String _formatDate(DateTime date) {
+  String _formatDateTime(DateTime date) {
     return "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}";
+  }
+
+  // Formatear solo la fecha
+  String _formatDate(DateTime date) {
+    return "${date.day}/${date.month}/${date.year}";
   }
 
   // Widget para el cajón inferior (Bottom Drawer)
@@ -399,4 +506,43 @@ class _PageAppGeneralState extends State<PageAppGeneral> {
     );
   }
 
+  // Widget para el calendario animado
+  Widget _buildAnimatedCalendar() {
+    return SizeTransition(
+      sizeFactor: CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+      child: Container(
+        color: Colors.white,
+        child: TableCalendar(
+          firstDay: DateTime.utc(2010, 1, 1),
+          lastDay: DateTime.utc(2030, 12, 31),
+          focusedDay: _focusedDay,
+          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+          calendarFormat: _calendarFormat,
+          startingDayOfWeek: StartingDayOfWeek.monday,
+          onDaySelected: _onDaySelected,
+          onRangeSelected: _onRangeSelected,
+          rangeSelectionMode: RangeSelectionMode.toggledOn, // Modo de selección de rango activado
+          rangeStartDay: _rangeStart,
+          rangeEndDay: _rangeEnd,
+          calendarStyle: CalendarStyle(
+            outsideDaysVisible: false,
+          ),
+          onFormatChanged: (format) {
+            if (_calendarFormat != format) {
+              setState(() {
+                _calendarFormat = format;
+              });
+            }
+          },
+          onPageChanged: (focusedDay) {
+            _focusedDay = focusedDay;
+          },
+        ),
+      ),
+    );
+  }
 }
+
