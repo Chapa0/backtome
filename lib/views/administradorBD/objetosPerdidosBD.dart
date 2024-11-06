@@ -56,7 +56,7 @@ class LostObject {
   Map<String, dynamic> toMap() {
     return {
       'descripcion': descripcion,
-      'tipoObjeto': tipoObjeto,
+      'tipoObjeto': tipoObjeto.toLowerCase(),
       'lugarEncontrado': lugarEncontrado,
       'imagenUrl': imagenUrl,
       'nombreEncontrado': nombreEncontrado,

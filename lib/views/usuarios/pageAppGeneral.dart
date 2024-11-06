@@ -44,6 +44,13 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   // AnimationController para el calendario
   late AnimationController _animationController;
 
+  // Variables para la funcionalidad de búsqueda
+  bool _isSearching = false; // Indica si la barra de búsqueda está visible
+  String _searchQuery = ''; // Consulta de búsqueda actual
+  TextEditingController _searchController = TextEditingController(); // Controlador para el campo de búsqueda
+  FocusNode _searchFocusNode = FocusNode(); // Nodo de enfoque para manejar el teclado
+
+
   @override
   void initState() {
     super.initState();
@@ -69,11 +76,14 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
   @override
   void dispose() {
-    // Disponer del AnimationController
     _animationController.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
+
+
 
   // Función para obtener los objetos perdidos con filtrado por fecha
   Future<void> _fetchLostObjects({bool isRefresh = false}) async {
@@ -92,10 +102,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     });
 
     try {
-      Query query = FirebaseFirestore.instance
-          .collection('objetos_perdidos')
-          .orderBy('timestamp', descending: true)
-          .limit(_perPage);
+      Query query = FirebaseFirestore.instance.collection('objetos_perdidos');
 
       // Aplicar filtrado por rango de fechas si está seleccionado
       if (_rangeStart != null && _rangeEnd != null) {
@@ -103,6 +110,21 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             .where('timestamp', isGreaterThanOrEqualTo: _rangeStart)
             .where('timestamp', isLessThanOrEqualTo: _rangeEnd);
       }
+
+      // Aplicar filtrado por búsqueda si hay una consulta
+      if (_searchQuery.isNotEmpty) {
+        String searchLower = _searchQuery.toLowerCase();
+
+        // Asumiendo que 'tipoObjeto' se almacena en minúsculas
+        query = query
+            .orderBy('tipoObjeto')
+            .startAt([searchLower])
+            .endAt([searchLower + '\uf8ff']);
+      } else {
+        query = query.orderBy('timestamp', descending: true);
+      }
+
+      query = query.limit(_perPage);
 
       if (_lastDocument != null) {
         query = query.startAfterDocument(_lastDocument!);
@@ -143,6 +165,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       _isLoading = false;
     });
   }
+
 
   // Función para refrescar la lista (pull to refresh)
   Future<void> _refreshLostObjects() async {
@@ -204,6 +227,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: _primaryColor,
+        // Dentro del AppBar
         actions: [
           TextButton.icon(
             onPressed: () {
@@ -219,9 +243,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             icon: Icon(Icons.filter_list, color: Colors.white),
             label: Text(
               _rangeStart != null && _rangeEnd != null
-                  ? _rangeStart!.year == _rangeEnd!.year &&
-                  _rangeStart!.month == _rangeEnd!.month &&
-                  _rangeStart!.day == _rangeEnd!.day
+                  ? _rangeStart!.isAtSameMomentAs(_rangeEnd!)
                   ? _formatDate(_rangeStart!) // Si es el mismo día, muestra una fecha
                   : '${_formatDate(_rangeStart!)} - ${_formatDate(_rangeEnd!)}' // Si es un rango, muestra ambas fechas
                   : 'Recientes',
@@ -233,6 +255,38 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       // Cuerpo de la pantalla
       body: Column(
         children: [
+          // Barra de búsqueda
+          if (_isSearching)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                decoration: InputDecoration(
+                  hintText: 'Buscar objetos perdidos...',
+                  prefixIcon: Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                      _fetchLostObjects(isRefresh: true);
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.trim();
+                  });
+                  _fetchLostObjects(isRefresh: true);
+                },
+              ),
+            ),
           // Calendario animado
           _buildAnimatedCalendar(),
           Expanded(
@@ -241,7 +295,13 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               child: _lostObjects.isEmpty
                   ? _isLoading
                   ? Center(child: CircularProgressIndicator())
-                  : Center(child: Text('No hay objetos perdidos.'))
+                  : Center(
+                child: Text(
+                  _isSearching
+                      ? 'No hay resultados para "$_searchQuery"'
+                      : 'No hay objetos perdidos.',
+                ),
+              )
                   : ListView.builder(
                 controller: _scrollController,
                 itemCount: _lostObjects.length + (_hasMore ? 1 : 0),
@@ -250,7 +310,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                     final lostObject = _lostObjects[index];
                     return _buildLostObjectItem(lostObject);
                   } else {
-                    // Mostrar el indicador de carga
+                    // Mostrar el indicador de carga o mensaje
                     return _buildLoadingIndicator();
                   }
                 },
@@ -285,7 +345,19 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             IconButton(
               icon: Icon(Icons.search, color: Colors.white),
               onPressed: () {
-                // Acción de búsqueda
+                setState(() {
+                  _isSearching = !_isSearching;
+                  if (_isSearching) {
+                    // Enfocar el campo de búsqueda
+                    FocusScope.of(context).requestFocus(_searchFocusNode);
+                  } else {
+                    // Limpiar la búsqueda y recargar los objetos
+                    _searchQuery = '';
+                    _searchController.clear();
+                    _fetchLostObjects(isRefresh: true);
+                    FocusScope.of(context).unfocus(); // Ocultar el teclado
+                  }
+                });
               },
             ),
           ],
@@ -408,7 +480,17 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         child: Center(child: CircularProgressIndicator()),
       );
     } else {
-      return SizedBox.shrink(); // No mostrar nada si no hay más datos
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            _searchQuery.isNotEmpty
+                ? 'Ya no hay más objetos perdidos que coincidan con "$_searchQuery".'
+                : 'Ya no hay más objetos perdidos.',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ),
+      );
     }
   }
 
