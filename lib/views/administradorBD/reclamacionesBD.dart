@@ -1,9 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Reclamacion {
   final String uidReclamante;
   final String nombreReclamante;
   final String estadoReclamacion;
   final String textoReclamacion;
   final String? imagenReclamacionUrl;
+  final DateTime? horaReclamacion;
 
   Reclamacion({
     required this.uidReclamante,
@@ -11,6 +14,7 @@ class Reclamacion {
     required this.estadoReclamacion,
     required this.textoReclamacion,
     this.imagenReclamacionUrl,
+    required this.horaReclamacion,
   });
 
   factory Reclamacion.fromMap(Map<String, dynamic> data) {
@@ -20,6 +24,8 @@ class Reclamacion {
       estadoReclamacion: data['estadoReclamacion'],
       textoReclamacion: data['textoReclamacion'],
       imagenReclamacionUrl: data['imagenReclamacionUrl'],
+      horaReclamacion: data['horaReclamacion'] != null ? (data['horaReclamacion'] as Timestamp).toDate() : null,
+
     );
   }
 
@@ -30,6 +36,7 @@ class Reclamacion {
       'estadoReclamacion': estadoReclamacion,
       'textoReclamacion': textoReclamacion,
       'imagenReclamacionUrl': imagenReclamacionUrl,
+      'horaReclamacion': horaReclamacion != null ? Timestamp.fromDate(horaReclamacion!) : null,
     };
   }
 }

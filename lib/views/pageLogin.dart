@@ -1,8 +1,14 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/views/pageCrearCuenta.dart';
 import 'package:flutter_backtome/views/usuarios/pageAppGeneral.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/usuarioRegistrado.dart';
+import 'administradorBD/usuariosBD.dart';
 import 'administradores/AdminHomePage.dart'; // Importa la página principal del administrador
 
 class PageLogin extends StatefulWidget {
@@ -10,8 +16,10 @@ class PageLogin extends StatefulWidget {
   _PageLoginState createState() => _PageLoginState();
 }
 
+
 class _PageLoginState extends State<PageLogin> {
   final Color _backgroundColor = Color(0xFFE1EDFF);
+
   // Variables útiles para la autenticación
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _correoController = TextEditingController();
@@ -21,209 +29,271 @@ class _PageLoginState extends State<PageLogin> {
   String? _correoError;
   String? _passwordError;
 
-  // Variable para controlar el estado del checkbox
+  // Variable para controlar el estado de carga
+  bool _isLoading = false;
 
-  // Métodos útiles para la autenticación:
-  Future<void> _signIn(BuildContext contextLocal, {required bool isAdmin}) async {
-    // Método para seguir errores
+  // Método para mostrar SnackBar
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // Método para iniciar sesión
+  Future<void> _signIn() async {
+    // Obtener y limpiar los textos de los campos
+    String email = _correoController.text.trim();
+    String password = _passwordController.text.trim();
+
+    // Inicialmente, asumimos que no hay errores
+    bool hasError = false;
+
     setState(() {
       _correoError = null;
       _passwordError = null;
     });
+
+    // Validar que los campos no estén vacíos
+    if (email.isEmpty) {
+      setState(() {
+        _correoError = 'El correo es obligatorio';
+      });
+      hasError = true;
+    }
+
+    if (password.isEmpty) {
+      setState(() {
+        _passwordError = 'La contraseña es obligatoria';
+      });
+      hasError = true;
+    }
+
+    if (hasError) {
+      return; // No proceder si hay errores
+    }
+
+    // Mostrar la pantalla de carga
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
+      // Intentar iniciar sesión con FirebaseAuth
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: _correoController.text.trim(),
-        password: _passwordController.text.trim(),
+        email: email,
+        password: password,
       );
       print("Signed in as: ${userCredential.user?.email}");
 
-      // Guarda los datos en SharedPreferences si el usuario marcó "Mantener sesión iniciada"
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userRole', isAdmin ? 'admin' : 'user');
+      // Cargar datos de usuario desde Firestore
+      final DocumentSnapshot doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(userCredential.user?.uid)
+          .get();
 
+      if (!doc.exists) {
+        _showSnackBar('Usuario no encontrado en la base de datos.');
+        return;
+      }
 
-      // Navega a la pantalla correspondiente
+      // Asumiendo que tienes una clase Usuario con un método fromMap
+      final Usuario usuario = Usuario.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      bool isAdmin = usuario.tipoUsuario == 'admin';
+      print("Usuario: ${usuario.nombre} ${usuario.apellido} (${usuario.correo}) - ${usuario.tipoUsuario}");
+
+      // Guarda los datos en SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userRole', isAdmin ? 'admin' : 'user');
+      final String usuarioJson = json.encode(usuario.toMap());
+      await prefs.setString('userData', usuarioJson);
+
+      // Carga los datos del usuario en el estado global
+      final authState = Provider.of<AuthState>(context, listen: false);
+      authState.setUser(usuario);
+
+      // Verificar si el widget sigue montado antes de navegar
+      if (!mounted) return;
+
+      // Navegar a la pantalla correspondiente
       if (isAdmin) {
         Navigator.pushAndRemoveUntil(
-          contextLocal,
+          context,
           MaterialPageRoute(
-            builder: (context) => PageAppGeneralAdmin(),
+            builder: (context) => PageAppGeneralAdmin(), // Asegúrate de que esta sea la página correcta
           ),
-          (route) => false,
+              (route) => false,
         );
       } else {
         Navigator.pushAndRemoveUntil(
-          contextLocal,
+          context,
           MaterialPageRoute(
             builder: (context) => PageAppGeneral(),
           ),
-          (route) => false,
+              (route) => false,
         );
       }
-    } catch (e) {
-      // Manejo de errores
-      if (e is FirebaseAuthException) {
-        if (e.code == 'invalid-email') {
-          setState(() {
-            _correoError = "Correo inválido o inexistente";
-          });
-        } else if (e.code == 'wrong-password') {
-          setState(() {
-            _passwordError = "Contraseña incorrecta";
-          });
-        } else {
-          setState(() {
-            _correoError = "Error en el inicio de sesión";
-          });
-        }
+    } on FirebaseAuthException catch (e) {
+      // Manejo de errores específicos de FirebaseAuth
+      String errorMessage;
+      switch (e.code) {
+        case 'invalid-email':
+          errorMessage = "Correo inválido. Por favor, verifica el formato.";
+          break;
+        case 'user-not-found':
+          errorMessage = "No existe una cuenta con este correo.";
+          break;
+        case 'wrong-password':
+          errorMessage = "Contraseña incorrecta. Inténtalo de nuevo.";
+          break;
+        case 'user-disabled':
+          errorMessage = "Esta cuenta ha sido deshabilitada.";
+          break;
+        case 'too-many-requests':
+          errorMessage = "Demasiados intentos. Por favor, intenta más tarde.";
+          break;
+        default:
+          errorMessage = "Error al iniciar sesión. Por favor, intenta de nuevo.";
       }
-      print("Error: $e");
+      _showSnackBar(errorMessage);
+      print("Error de FirebaseAuth: $e");
+    } catch (e) {
+      // Manejo de otros errores
+      _showSnackBar("Ocurrió un error inesperado. Por favor, intenta de nuevo.");
+      print("Error inesperado: $e");
+    } finally {
+      // Ocultar la pantalla de carga
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _correoController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: _backgroundColor,
-        elevation: 0,
-        actions: [
-          // Botón discreto de acceso de administrador
-          IconButton(
-            icon: Icon(Icons.admin_panel_settings, color: Colors.blue),
-            onPressed: () => _showAdminLoginDialog(context),
-            tooltip: 'Acceso administrador',
+      backgroundColor: _backgroundColor,
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: SingleChildScrollView( // Para evitar overflow en pantallas pequeñas
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Logo y texto de la pantalla
+                  SizedBox(height: 60), // Espacio superior
+                  Image.asset(
+                    'lib/resources/itver_logo_sf.png',
+                    height: 100,
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    "INICIAR SESIÓN",
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  // Campo de correo electrónico
+                  TextField(
+                    controller: _correoController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: "Correo Electrónico",
+                      errorText: _correoError,
+                      prefixIcon: Icon(Icons.person),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      if (_correoError != null && value.trim().isNotEmpty) {
+                        setState(() {
+                          _correoError = null;
+                        });
+                      }
+                    },
+                  ),
+                  SizedBox(height: 20),
+                  // Campo de contraseña
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: "Contraseña",
+                      errorText: _passwordError,
+                      prefixIcon: Icon(Icons.lock),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      if (_passwordError != null && value.trim().isNotEmpty) {
+                        setState(() {
+                          _passwordError = null;
+                        });
+                      }
+                    },
+                  ),
+                  SizedBox(height: 10),
+                  // Recordar contraseña checkbox (si lo necesitas, puedes implementarlo aquí)
+
+                  SizedBox(height: 20),
+                  // Botón de Iniciar Sesión
+                  ElevatedButton(
+                    onPressed: _signIn,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: EdgeInsets.symmetric(horizontal: 60, vertical: 15),
+                    ),
+                    child: Text(
+                      "Iniciar Sesión",
+                      style: TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  // Botón de Crear Cuenta
+                  TextButton(
+                    onPressed: () {
+                      // Navegar a la pantalla de Crear Cuenta
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PageCrearCuenta(background: _backgroundColor),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      "Crear Cuenta",
+                      style: TextStyle(fontSize: 16, color: Colors.blue),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+          // Pantalla de carga
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: SingleChildScrollView( // Para evitar overflow en pantallas pequeñas
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Logo y texto de la pantalla
-              SizedBox(height: 60), // Espacio superior
-              Image.asset(
-                'lib/resources/itver_logo_sf.png',
-                height: 100,
-              ),
-              SizedBox(height: 20),
-              Text(
-                "INICIAR SESIÓN",
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 20),
-              // Campo de correo electrónico
-              TextField(
-                controller: _correoController,
-                decoration: InputDecoration(
-                  labelText: "Correo Electrónico",
-                  errorText: _correoError,
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              SizedBox(height: 20),
-              // Campo de contraseña
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: "Contraseña",
-                  errorText: _passwordError,
-                  prefixIcon: Icon(Icons.lock),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              SizedBox(height: 10),
-              // Recordar contraseña checkbox
-
-              SizedBox(height: 20),
-              // Botón de Iniciar Sesión
-              ElevatedButton(
-                onPressed: () => _signIn(context, isAdmin: false),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  padding: EdgeInsets.symmetric(horizontal: 60, vertical: 15),
-                ),
-                child: Text(
-                  "Iniciar Sesión",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-              ),
-              SizedBox(height: 20),
-              // Botón de Crear Cuenta
-              TextButton(
-                onPressed: () {
-                  // Navegar a la pantalla de Crear Cuenta
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PageCrearCuenta(background: _backgroundColor),
-                    ),
-                  );
-                },
-                child: Text(
-                  "Crear Cuenta",
-                  style: TextStyle(fontSize: 16, color: Colors.blue),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Método para mostrar un diálogo de inicio de sesión para administradores
-  void _showAdminLoginDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        TextEditingController _adminPasswordController = TextEditingController();
-
-        return AlertDialog(
-          title: Text('Acceso de administrador'),
-          content: TextField(
-            controller: _adminPasswordController,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: 'Contraseña de administrador',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                // Cerrar el diálogo
-                Navigator.of(context).pop();
-              },
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Verificar la contraseña de administrador
-                if (_adminPasswordController.text == '1234567') {
-                  // Iniciar sesión como administrador
-                  _signIn(context, isAdmin: true);
-                  Navigator.of(context).pop();
-                } else {
-                  // Mostrar mensaje de error
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Contraseña de administrador incorrecta')),
-                  );
-                }
-              },
-              child: Text('Ingresar'),
-            ),
-          ],
-        );
-      },
     );
   }
 }

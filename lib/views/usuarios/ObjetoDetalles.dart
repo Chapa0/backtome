@@ -1,17 +1,26 @@
 // lost_object_detail_page.dart
 
+import 'dart:async';
+import 'dart:math';
+import 'package:dio/dio.dart';
+import 'package:path/path.dart' as path;
+
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
-import '../administradorBD/reclamaciones.dart';
+import '../administradorBD/reclamacionesBD.dart';
 import '../administradorBD/usuariosBD.dart';
-import 'fullscreen_image_detail.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'fullscreen_image_detail.dart';
+import 'lostObjectPickupPage.dart';
 
 class LostObjectDetailPage extends StatefulWidget {
   final LostObject lostObject;
@@ -29,7 +38,32 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   final _formKey = GlobalKey<FormState>();
   final _textoController = TextEditingController();
   File? _imageFile;
+  List<String> imagenesUrls = []; // Inicializa con las URLs de las imágenes
   bool _isSubmitting = false;
+  List<File> _selectedImages = []; // Lista de archivos locales
+
+  // Variables para mensajes de advertencia
+  final List<String> _warningMessages = [
+    "Reclamar objetos perdidos que no te pertenecen puede ser considerado como robo.",
+    "No reclames objetos perdidos que no son de tu propiedad.",
+    "Asegúrate de que el objeto perdido sea tuyo antes de reclamarlo.",
+    "Reclamar objetos sin ser el dueño legítimo puede tener consecuencias legales.",
+    "Por favor, verifica que eres el propietario del objeto antes de reclamarlo."
+  ];
+  String _currentWarningMessage = "";
+  Timer? _messageTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImages(widget.lostObject.imageUrls);
+    print("numero de urls: ${widget.lostObject.imageUrls!.length}");
+
+    // Inicializar el mensaje de advertencia
+    _currentWarningMessage = _warningMessages[0];
+
+  }
+
 
   // Formatear la fecha
   String _formatDate(DateTime date) {
@@ -72,30 +106,36 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
       _isSubmitting = true;
     });
 
-    String? imageUrl;
-    if (_imageFile != null) {
-      imageUrl = await _uploadImage(_imageFile!);
-    }
+    // Mostrar el diálogo de carga con mensajes de advertencia
+    _showLoadingDialog();
 
-    // Obtener información del usuario actual
-    final authState = Provider.of<AuthState>(context, listen: false);
-    final Usuario? currentUser = authState.user;
+    DateTime startTime = DateTime.now();
 
-    // Crear una nueva reclamación
-    Reclamacion nuevaReclamacion = Reclamacion(
-      uidReclamante: currentUser!.id,
-      nombreReclamante: currentUser.nombre,
-      estadoReclamacion: 'Pendiente',
-      textoReclamacion: _textoController.text.trim(),
-      imagenReclamacionUrl: imageUrl,
-    );
-
-    // Añadir la reclamación a la lista existente
-    List<Reclamacion> nuevasReclamaciones = List.from(widget.lostObject.reclamaciones)
-      ..add(nuevaReclamacion);
-
-    // Actualizar el objeto en Firestore
     try {
+      String? imageUrl;
+      if (_imageFile != null) {
+        imageUrl = await _uploadImage(_imageFile!);
+      }
+
+      // Obtener información del usuario actual
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final Usuario? currentUser = authState.user;
+
+      // Crear una nueva reclamación
+      Reclamacion nuevaReclamacion = Reclamacion(
+        uidReclamante: currentUser!.id,
+        nombreReclamante: currentUser.nombre,
+        estadoReclamacion: 'Pendiente',
+        textoReclamacion: _textoController.text.trim(),
+        imagenReclamacionUrl: imageUrl,
+        horaReclamacion: DateTime.now(),
+      );
+
+      // Añadir la reclamación a la lista existente
+      List<Reclamacion> nuevasReclamaciones =
+      List.from(widget.lostObject.reclamaciones)..add(nuevaReclamacion);
+
+      // Actualizar el objeto en Firestore
       await FirebaseFirestore.instance
           .collection('objetos_perdidos')
           .doc(widget.lostObject.id)
@@ -108,7 +148,12 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
         SnackBar(content: Text('Reclamación enviada exitosamente.')),
       );
 
-      Navigator.of(context).pop(); // Regresar a la pantalla anterior
+      // Navegar a la página de recolección de objetos perdidos
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => LostObjectPickupPage(),
+        ),
+      );
     } catch (e) {
       print('Error al enviar la reclamación: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,9 +161,21 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
       );
     }
 
+    // Calcular el tiempo transcurrido
+    DateTime endTime = DateTime.now();
+    Duration elapsed = endTime.difference(startTime);
+
+    // Determinar si se necesita esperar más tiempo
+    if (elapsed < Duration(seconds: 5)) {
+      await Future.delayed(Duration(seconds: 5) - elapsed);
+    }
+
     setState(() {
       _isSubmitting = false;
     });
+
+    // Cerrar el diálogo de carga si aún está abierto
+    Navigator.of(context).pop(); // Cerrar el diálogo
   }
 
   @override
@@ -133,8 +190,136 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
     return widget.lostObject.reclamaciones.any((reclamacion) => reclamacion.uidReclamante == currentUser?.id);
   }
 
+  bool _isOwner() {
+    final authState = Provider.of<AuthState>(context, listen: false);
+    final Usuario? currentUser = authState.user;
+    return widget.lostObject.uidEncontrado == currentUser?.id;
+  }
+
+  Future<void> _loadImages(List<String>? imageUrls) async {
+    if (imageUrls == null || imageUrls.isEmpty) {
+      return;
+    }
+
+    List<File> imageFiles = [];
+    for (String url in imageUrls) {
+      try {
+        File imageFile = await _urlToFile(url);
+        imageFiles.add(imageFile);
+      } catch (e) {
+        print("Error al descargar la imagen: $e");
+        // Opcionalmente, maneja el error, por ejemplo, mostrando un mensaje al usuario
+      }
+    }
+
+    setState(() {
+      _selectedImages = imageFiles;
+      print("Imagenes cargadas: ${_selectedImages.length}");
+    });
+  }
+
+  Future<File> _urlToFile(String imageUrl) async {
+    // Crear una instancia de Dio
+    var dio = Dio();
+
+    // Obtener una ubicación temporal en el sistema de archivos del dispositivo donde guardar el archivo
+    Directory tempDir = await getTemporaryDirectory();
+    String tempPath = tempDir.path;
+
+    // Extraer el nombre del archivo de la URL
+    String fileName = path.basename(imageUrl);
+
+    // Combinar el camino temporal con el nombre del archivo
+    String filePath = path.join(tempPath, fileName);
+
+    try {
+      // Descargar el archivo de la imagen de la URL
+      Response response = await dio.download(imageUrl, filePath);
+
+      // Si la descarga fue exitosa, devolver el archivo
+      if (response.statusCode == 200) {
+        return File(filePath);
+      } else {
+        throw Exception('Error al descargar la imagen: Estado HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error al descargar la imagen: $e');
+    }
+  }
+
+
+  // Método para construir los items del carousel
+  List<Widget> _buildCarouselItems(BuildContext context) {
+    List<Widget> items = [];
+    for (var i = 0; i < _selectedImages.length; i++) {
+      var file = _selectedImages[i];
+      var item = Stack(
+        alignment: Alignment.topRight,
+        children: [
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FullScreenImageViewer(
+                    images: _selectedImages,
+                    initialIndex: i,
+                  ),
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(file, fit: BoxFit.cover, width: double.infinity),
+            ),
+          ),
+          // Botón para eliminar la imagen
+          /*Container(
+            color: Colors.black.withOpacity(0.5),
+            child: IconButton(
+              icon: const Icon(Icons.remove_circle, color: Colors.white),
+              onPressed: () {
+                setState(() {
+                  _selectedImages.removeAt(i);
+                });
+              },
+            ),
+          ),*/
+        ],
+      );
+      items.add(item);
+    }
+
+    // Si hay menos de 5 imágenes, añadir al final el botón para añadir más imágenes.
+   /* if (_selectedImages.length < 5) {
+      Widget addButton = ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          color: Colors.grey[300],
+          child: GestureDetector(
+            onTap: _pickImage,
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Icon(Icons.add_a_photo, size: 50, color: Colors.grey),
+                  Text("Añadir imagen"),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      items.add(addButton);
+    }*/
+
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final Color primaryColor = Color(0xFF1B396A);
 
     return Scaffold(
       appBar: AppBar(
@@ -161,60 +346,33 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Imagen del objeto perdido con GestureDetector
-            GestureDetector(
-              onTap: () {
-                // Abrir imagen en pantalla completa
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return FullscreenImageDialog(
-                      imageUrl: widget.lostObject.imagenUrl,
-                    );
-                  },
-                );
-              },
-              child: widget.lostObject.imagenUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                imageUrl: widget.lostObject.imagenUrl,
-                width: double.infinity,
-                height: 250,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  width: double.infinity,
-                  height: 250,
-                  color: Colors.grey[300],
-                  child: Center(child: CircularProgressIndicator()),
+            // Imagenes del objeto perdido
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+              child: CarouselSlider(
+                options: CarouselOptions(
+                  height: 200,
+                  enableInfiniteScroll: false,
+                  enlargeCenterPage: true,
+                  viewportFraction: 0.8,
                 ),
-                errorWidget: (context, url, error) => Container(
-                  width: double.infinity,
-                  height: 250,
-                  color: Colors.grey[300],
-                  child: Icon(Icons.error, color: Colors.red, size: 40),
-                ),
-              )
-                  : Container(
-                width: double.infinity,
-                height: 250,
-                color: Colors.grey[300],
-                child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey[700]),
+                items: _buildCarouselItems(context),
               ),
             ),
             // Detalles del objeto perdido dentro de un Card
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: // Reemplaza este código en tu widget
-              Container(
-                width: double.infinity, // Asegura que el Card ocupe todo el ancho disponible
-                padding: EdgeInsets.symmetric(horizontal: 0.0), // Padding de 16 a los lados
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(horizontal: 0.0),
                 child: Card(
                   elevation: 4.0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12.0),
                   ),
-                  margin: EdgeInsets.zero, // Elimina cualquier margen adicional del Card
+                  margin: EdgeInsets.zero,
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0), // Padding interno del contenido
+                    padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -274,7 +432,8 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                               SizedBox(height: 4),
                               Text(
                                 widget.lostObject.estadoReclamacion!,
-                                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.grey[700]),
                               ),
                             ],
                           ),
@@ -284,9 +443,23 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                 ),
               ),
             ),
+
             SizedBox(height: 16),
+            // Verificar si el usuario es el propietario
+            if (_isOwner())
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                //texto justificado
+                child: Center(
+                  child: Text(
+                  'No puedes reclamar un objeto que tú mismo has encontrado.',
+                  style: TextStyle(fontSize: 16, color: Colors.redAccent, fontWeight: FontWeight.bold , fontStyle: FontStyle.italic),
+                ),
+                ),
+
+              )
+            else if (!_hasUserClaimed())
             // Formulario de reclamación
-            if (!_hasUserClaimed())
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Form(
@@ -319,16 +492,16 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           ElevatedButton.icon(
-                            // que sea color blanco
-
-                            onPressed: _pickImage,
                             icon: Icon(Icons.photo, color: Colors.white),
                             label: _imageFile != null
-                                ? Text('Imagen seleccionada', style: TextStyle(color: Colors.white))
-                                : Text('No se ha seleccionado ninguna imagen', style: TextStyle(color: Colors.white)),
-                            style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+                                ? Text('Imagen seleccionada',
+                                style: TextStyle(color: Colors.white))
+                                : Text('No se ha seleccionado ninguna imagen',
+                                style: TextStyle(color: Colors.white)),
+                            onPressed: _pickImage,
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryColor),
                           ),
-
                         ],
                       ),
                       SizedBox(height: 24),
@@ -337,18 +510,21 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                         onPressed: _isSubmitting ? null : _submitClaim,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _primaryColor,
-                          padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                          padding: EdgeInsets.symmetric(
+                              vertical: 16.0, horizontal: 32.0),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12.0),
                           ),
                         ),
                         child: _isSubmitting
                             ? CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.white),
                         )
                             : Text(
                           'Enviar reclamación',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
+                          style:
+                          TextStyle(fontSize: 18, color: Colors.white),
                         ),
                       ),
                     ],
@@ -370,4 +546,52 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
       ),
     );
   }
+
+  Future<void> _showLoadingDialog() async {
+    _currentWarningMessage = _warningMessages[0];
+    int messageIndex = 0;
+    final random = Random();
+
+    // Iniciar la rotación de mensajes cada 2 segundos
+    _messageTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+      setState(() {
+        messageIndex = random.nextInt(_warningMessages.length);
+        _currentWarningMessage = _warningMessages[messageIndex];
+      });
+    });
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false, // Evita cerrar el diálogo tocando fuera
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  _currentWarningMessage,
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Cancelar el temporizador cuando el diálogo se cierre
+    _messageTimer?.cancel();
+  }
+
 }

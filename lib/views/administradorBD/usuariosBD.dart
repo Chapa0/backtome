@@ -1,9 +1,14 @@
+
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Usuario {
   String id;
   String nombre;
   String apellido;
   String correo;
   String urlimagen='';
+  String tipoUsuario;
 
 
 
@@ -13,6 +18,7 @@ class Usuario {
     required this.apellido,
     required this.correo,
     required this.urlimagen,
+    required this.tipoUsuario,
 
 
   });
@@ -24,7 +30,7 @@ class Usuario {
       'apellido': apellido,
       'correo': correo,
       'urlimagen': urlimagen,
-
+      'tipoUsuario': tipoUsuario,
 
 
     };
@@ -37,7 +43,21 @@ class Usuario {
       apellido: map['apellido'] ?? '',
       correo: map['correo'] ?? '',
       urlimagen: map['urlimagen'] ?? '',
+      tipoUsuario: map['tipoUsuario'] ?? '',
     );
   }
+
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+
+  static Future<void> updateUser(Usuario user) async {
+    try {
+      await _firestore.collection('usuarios').doc(user.id).update(user.toMap());
+    } catch (e) {
+      print('Error al actualizar el usuario: $e');
+      throw e;
+    }
+  }
+
 
 }

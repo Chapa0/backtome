@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_backtome/views/usuarios/registrarObjetoPerdido.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart'; // Importar intl para formatear fechas
+
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
 import '../administradorBD/usuariosBD.dart';
 import 'ObjetoDetalles.dart';
 import 'UserAccountPage.dart';
+import 'listaObjetosAgregados.dart';
 
 class PageAppGeneral extends StatefulWidget {
   @override
@@ -50,26 +55,30 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   TextEditingController _searchController = TextEditingController(); // Controlador para el campo de búsqueda
   FocusNode _searchFocusNode = FocusNode(); // Nodo de enfoque para manejar el teclado
 
+  StreamSubscription<QuerySnapshot>? _lostObjectsSubscription;
 
   @override
   void initState() {
     super.initState();
-
     // Inicializar el AnimationController
     _animationController = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 300),
     );
 
-    _fetchLostObjects();
+    // Configurar el listener inicialmente
+    _setupLostObjectsListener();
 
     // Añadir un listener al controlador de desplazamiento
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200 &&
           !_isLoading &&
-          _hasMore) {
-        _fetchLostObjects();
+          _hasMore &&
+          !(_searchQuery.isNotEmpty &&
+              _rangeStart != null &&
+              _rangeEnd != null)) {
+        _setupLostObjectsListener();
       }
     });
   }
@@ -80,121 +89,282 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     _scrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _lostObjectsSubscription?.cancel(); // Cancelar la suscripción al listener
     super.dispose();
   }
 
-
-
-  // Función para obtener los objetos perdidos con filtrado por fecha
-  Future<void> _fetchLostObjects({bool isRefresh = false}) async {
-    if (_isLoading) return;
-
-    if (isRefresh) {
-      setState(() {
-        _lostObjects.clear();
-        _lastDocument = null;
-        _hasMore = true;
-      });
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      Query query = FirebaseFirestore.instance.collection('objetos_perdidos');
-
-      // Aplicar filtrado por rango de fechas si está seleccionado
-      if (_rangeStart != null && _rangeEnd != null) {
-        query = query
-            .where('timestamp', isGreaterThanOrEqualTo: _rangeStart)
-            .where('timestamp', isLessThanOrEqualTo: _rangeEnd);
-      }
-
-      // Aplicar filtrado por búsqueda si hay una consulta
-      if (_searchQuery.isNotEmpty) {
-        String searchLower = _searchQuery.toLowerCase();
-
-        // Asumiendo que 'tipoObjeto' se almacena en minúsculas
-        query = query
-            .orderBy('tipoObjeto')
-            .startAt([searchLower])
-            .endAt([searchLower + '\uf8ff']);
-      } else {
-        query = query.orderBy('timestamp', descending: true);
-      }
-
-      query = query.limit(_perPage);
-
-      if (_lastDocument != null) {
-        query = query.startAfterDocument(_lastDocument!);
-      }
-
-      QuerySnapshot querySnapshot = await query.get();
-
-      if (querySnapshot.docs.isNotEmpty) {
-        _lastDocument = querySnapshot.docs.last;
-
-        List<LostObject> fetchedObjects = querySnapshot.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return LostObject.fromMap(data, doc.id);
-        }).toList();
-
-        setState(() {
-          _lostObjects.addAll(fetchedObjects);
-          // Si se obtuvieron menos de _perPage documentos, ya no hay más por cargar
-          if (fetchedObjects.length < _perPage) {
-            _hasMore = false;
-          }
-        });
-      } else {
-        // No hay más documentos
-        setState(() {
-          _hasMore = false;
-        });
-      }
-    } catch (error) {
-      print("Error al cargar los objetos perdidos desde Firestore: $error");
-      // Mostrar SnackBar en caso de error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar los objetos perdidos.')),
-      );
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
-  }
-
-
-  // Función para refrescar la lista (pull to refresh)
-  Future<void> _refreshLostObjects() async {
-    await _fetchLostObjects(isRefresh: true);
+  // Función para verificar si dos fechas son el mismo día, mes y año
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.day == b.day && a.month == b.month && a.year == b.year;
   }
 
   // Función para obtener el inicio del día
   DateTime _getStartOfDay(DateTime date) {
-    return DateTime(date.year, date.month, date.day, 0, 0, 0, 0);
+    return DateTime(date.year, date.month, date.day, 0, 0, 0);
   }
 
-// Función para obtener el fin del día
+  // Función para obtener el fin del día
   DateTime _getEndOfDay(DateTime date) {
-    return DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+    return DateTime(date.year, date.month, date.day, 23, 59, 59);
   }
 
+  // Función para formatear la fecha como "día mes" (ejemplo: 15 Septiembre)
+  String _formatDate(DateTime date) {
+    // que muestr el dia y el mes abrebiado
+    final DateFormat formatter = DateFormat('d MMM');
+    return formatter.format(date);
+  }
 
-  // Funciones del calendario
+  // Función para formatear la fecha y hora para mostrar en la lista
+  String _formatDateTime(DateTime date) {
+    final DateFormat formatter = DateFormat('d MMM y, HH:mm');
+    return formatter.format(date);
+  }
+
+  // Función para obtener los objetos perdidos con filtrado por fecha y/o búsqueda
+  void _setupLostObjectsListener({bool isRefresh = false}) {
+
+    try {
+      // Cancelar cualquier suscripción previa si existe
+      if (_lostObjectsSubscription != null) {
+        _lostObjectsSubscription?.cancel();
+        _lostObjectsSubscription = null;
+      }
+
+      // Determinar el tipo de consulta según los filtros activos
+      if (_searchQuery.isNotEmpty && _rangeStart != null && _rangeEnd != null) {
+        // **Caso 3: Filtrado por fecha y búsqueda por objeto**
+        // Realizar una consulta solo por fecha y luego filtrar localmente
+
+        DateTime startOfStart = _getStartOfDay(_rangeStart!);
+        DateTime endOfEnd = _getEndOfDay(_rangeEnd!);
+        setState(() {
+          _isLoading = true;
+        });
+
+        Query query = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('timestamp', isGreaterThanOrEqualTo: startOfStart)
+            .where('timestamp', isLessThanOrEqualTo: endOfEnd)
+            .orderBy('timestamp', descending: true);
+
+        // Obtener los datos una sola vez (no en tiempo real)
+        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
+          final newObjects = querySnapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return LostObject.fromMap(data, doc.id);
+          }).toList();
+
+          setState(() {
+            if (isRefresh) {
+              _lostObjects = newObjects;
+            } else {
+              _lostObjects.addAll(newObjects);
+            }
+
+            if (querySnapshot.docs.isNotEmpty) {
+              _lastDocument = querySnapshot.docs.last;
+              _hasMore = newObjects.length == _perPage;
+            } else {
+              _hasMore = false;
+            }
+
+            _isLoading = false;
+          });
+        }, onError: (error) {
+          print("Error al cargar los objetos perdidos desde Firestore: $error");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        });
+
+      } else if (_searchQuery.isNotEmpty) {
+        // **Caso 2: Solo búsqueda por objeto**
+        // Configurar la consulta con el término de búsqueda
+
+        Query query = FirebaseFirestore.instance.collection('objetos_perdidos');
+
+        String searchLower = _searchQuery.toLowerCase();
+        query = query
+            .orderBy('tipoObjeto')
+            .startAt([searchLower])
+            .endAt([searchLower + '\uf8ff'])
+            .limit(_perPage);
+
+        if (isRefresh) {
+          _lastDocument = null;
+          _hasMore = true;
+          _lostObjects = [];
+        }
+
+        if (_lastDocument != null && !isRefresh) {
+          query = query.startAfterDocument(_lastDocument!);
+        }
+
+        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
+          final newObjects = querySnapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return LostObject.fromMap(data, doc.id);
+          }).toList();
+
+          setState(() {
+            if (isRefresh) {
+              _lostObjects = newObjects;
+            } else {
+              _lostObjects.addAll(newObjects);
+            }
+
+            if (querySnapshot.docs.isNotEmpty) {
+              _lastDocument = querySnapshot.docs.last;
+              _hasMore = newObjects.length == _perPage;
+            } else {
+              _hasMore = false;
+            }
+
+            _isLoading = false;
+          });
+        }, onError: (error) {
+          print("Error al cargar los objetos perdidos desde Firestore: $error");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        });
+
+      } else if (_rangeStart != null && _rangeEnd != null) {
+        // **Caso 1: Solo filtrado por fecha**
+        // Configurar la consulta con el rango de fechas
+
+        DateTime startOfStart = _getStartOfDay(_rangeStart!);
+        DateTime endOfEnd = _getEndOfDay(_rangeEnd!);
+
+        Query query = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('timestamp', isGreaterThanOrEqualTo: startOfStart)
+            .where('timestamp', isLessThanOrEqualTo: endOfEnd)
+            .orderBy('timestamp', descending: true)
+            .limit(_perPage);
+
+        if (isRefresh) {
+          _lastDocument = null;
+          _hasMore = true;
+          _lostObjects = [];
+        }
+        // Si no es una actualización, continuar desde el último documento
+        if (_lastDocument != null && !isRefresh) {
+          query = query.startAfterDocument(_lastDocument!);
+        }
+        // Escuchar los cambios en tiempo real
+        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
+          final newObjects = querySnapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return LostObject.fromMap(data, doc.id);
+          }).toList();
+
+          setState(() {
+            if (isRefresh) {
+              _lostObjects = newObjects;
+            } else {
+              _lostObjects.addAll(newObjects);
+            }
+
+            if (querySnapshot.docs.isNotEmpty) {
+              _lastDocument = querySnapshot.docs.last;
+              _hasMore = newObjects.length == _perPage;
+            } else {
+              _hasMore = false;
+            }
+
+            _isLoading = false;
+          });
+        }, onError: (error) {
+          print("Error al cargar los objetos perdidos desde Firestore: $error");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        });
+
+      } else {
+        // **Caso 0: Sin filtros**
+        // Configurar la consulta por defecto
+
+        Query query = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .orderBy('timestamp', descending: true)
+            .limit(_perPage);
+
+        if (isRefresh) {
+          _lastDocument = null;
+          _hasMore = true;
+          _lostObjects = [];
+        }
+
+        if (_lastDocument != null && !isRefresh) {
+          query = query.startAfterDocument(_lastDocument!);
+        }
+
+        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
+          final newObjects = querySnapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return LostObject.fromMap(data, doc.id);
+          }).toList();
+
+          setState(() {
+
+              _lostObjects = newObjects;
+
+
+            if (querySnapshot.docs.isNotEmpty) {
+              _lastDocument = querySnapshot.docs.last;
+              _hasMore = newObjects.length == _perPage;
+            } else {
+              _hasMore = false;
+            }
+
+            _isLoading = false;
+            print('Objetos perdidos cargados: ${_lostObjects.length}');
+          });
+        }, onError: (error) {
+          print("Error al cargar los objetos perdidos desde Firestore: $error");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        });
+      }
+    } catch (error) {
+      print("Error al configurar el listener de objetos perdidos: $error");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al configurar la escucha de objetos perdidos.')),
+      );
+    }
+  }
+
+  // Función para refrescar la lista (pull to refresh)
+  Future<void> _refreshLostObjects() async {
+    _setupLostObjectsListener(isRefresh: true);
+  }
+
   void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     setState(() {
       _selectedDay = selectedDay;
       _focusedDay = focusedDay;
-      _rangeStart = _getStartOfDay(selectedDay); // Inicio del día seleccionado
-      _rangeEnd = _getEndOfDay(selectedDay);     // Fin del día seleccionado
+      _rangeStart = selectedDay; // Asignar la fecha seleccionada sin conversión
+      _rangeEnd = selectedDay; // Asignar la misma fecha para indicar un solo día
       _isCalendarVisible = false;
       _animationController.reverse(); // Contraer el calendario
     });
-    _fetchLostObjects(isRefresh: true); // Recargar los objetos con el nuevo filtro
+    _setupLostObjectsListener(isRefresh: true); // Recargar los objetos con el nuevo filtro
   }
+
+  // Funciones del calendario
 
   void _onRangeSelected(DateTime? start, DateTime? end, DateTime focusedDay) {
     setState(() {
@@ -202,21 +372,37 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       _focusedDay = focusedDay;
 
       if (start != null) {
-        _rangeStart = _getStartOfDay(start); // Inicio del primer día del rango
+        _rangeStart = start; // Asignar la fecha de inicio sin conversión
       }
 
       if (end != null) {
-        _rangeEnd = _getEndOfDay(end);       // Fin del último día del rango
+        _rangeEnd = end;       // Fin del último día del rango
+        _isCalendarVisible = false;
+        _animationController.reverse(); // Contraer el calendario
       } else if (start != null) {
-        _rangeEnd = _getEndOfDay(start);     // Si no hay fin, usar el inicio
+        _rangeEnd = start;     // Si no hay fin, usar el inicio
       }
 
     });
-    _fetchLostObjects(isRefresh: true); // Recargar los objetos con el nuevo filtro
+    _setupLostObjectsListener(isRefresh: true); // Recargar los objetos con el nuevo filtro
   }
 
   @override
   Widget build(BuildContext context) {
+    // Definir los objetos a mostrar según los filtros activos
+    List<LostObject> displayObjects;
+    if (_searchQuery.isNotEmpty && _rangeStart != null && _rangeEnd != null) {
+      // **Caso 3: Filtrado por fecha y búsqueda por objeto**
+      // Filtrar localmente los objetos cargados por búsqueda
+      displayObjects = _lostObjects
+          .where((obj) =>
+          obj.tipoObjeto.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+    } else {
+      // **Caso 0, 1 y 2: Sin filtros combinados**
+      displayObjects = _lostObjects;
+    }
+
     return Scaffold(
       // AppBar en la parte superior
       appBar: AppBar(
@@ -241,7 +427,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             icon: Icon(Icons.filter_list, color: Colors.white),
             label: Text(
               _rangeStart != null && _rangeEnd != null
-                  ? _rangeStart!.isAtSameMomentAs(_rangeEnd!)
+                  ? _isSameDate(_rangeStart!, _rangeEnd!)
                   ? _formatDate(_rangeStart!) // Si es el mismo día, muestra una fecha
                   : '${_formatDate(_rangeStart!)} - ${_formatDate(_rangeEnd!)}' // Si es un rango, muestra ambas fechas
                   : 'Recientes',
@@ -270,7 +456,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                       setState(() {
                         _searchQuery = '';
                       });
-                      _fetchLostObjects(isRefresh: true);
+                      _setupLostObjectsListener(isRefresh: true);
                     },
                   ),
                   border: OutlineInputBorder(
@@ -281,7 +467,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                   setState(() {
                     _searchQuery = value.trim();
                   });
-                  _fetchLostObjects(isRefresh: true);
+                  _setupLostObjectsListener(isRefresh: true);
                 },
               ),
             ),
@@ -290,10 +476,10 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refreshLostObjects,
-              child: _lostObjects.isEmpty
-                  ? _isLoading
+              child: _isLoading && displayObjects.isEmpty
                   ? Center(child: CircularProgressIndicator())
-                  : Center(
+                  : displayObjects.isEmpty
+                  ? Center(
                 child: Text(
                   _isSearching
                       ? 'No hay resultados para "$_searchQuery"'
@@ -302,10 +488,16 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               )
                   : ListView.builder(
                 controller: _scrollController,
-                itemCount: _lostObjects.length + (_hasMore ? 1 : 0),
+                itemCount: displayObjects.length +
+                    (_hasMore &&
+                        !(_searchQuery.isNotEmpty &&
+                            _rangeStart != null &&
+                            _rangeEnd != null)
+                        ? 1
+                        : 0),
                 itemBuilder: (context, index) {
-                  if (index < _lostObjects.length) {
-                    final lostObject = _lostObjects[index];
+                  if (index < displayObjects.length) {
+                    final lostObject = displayObjects[index];
                     return _buildLostObjectItem(lostObject);
                   } else {
                     // Mostrar el indicador de carga o mensaje
@@ -352,7 +544,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                     // Limpiar la búsqueda y recargar los objetos
                     _searchQuery = '';
                     _searchController.clear();
-                    _fetchLostObjects(isRefresh: true);
+                    _setupLostObjectsListener(isRefresh: true);
                     FocusScope.of(context).unfocus(); // Ocultar el teclado
                   }
                 });
@@ -376,8 +568,6 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       ),
     );
   }
-
-
 
   // Widget para construir cada elemento de la lista
   Widget _buildLostObjectItem(LostObject lostObject) {
@@ -518,16 +708,6 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     }
   }
 
-  // Formatear la fecha para mostrarla en la lista
-  String _formatDateTime(DateTime date) {
-    return "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}";
-  }
-
-  // Formatear solo la fecha
-  String _formatDate(DateTime date) {
-    return "${date.day}/${date.month}/${date.year}";
-  }
-
   // Widget para el cajón inferior (Bottom Drawer)
   Widget _buildBottomDrawer() {
     final authState = Provider.of<AuthState>(context);
@@ -553,7 +733,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                   CircleAvatar(
                     radius: 30,
                     backgroundImage: NetworkImage(currentUser?.urlimagen ??
-                        'https://via.placeholder.com/150'),
+                        'https://www.gravatar.com/avatar/15'),
                   ),
                   SizedBox(width: 16),
                   Expanded(
@@ -587,8 +767,11 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             leading: Icon(Icons.add_box),
             title: Text('Objetos perdidos agregados'),
             onTap: () {
-              Navigator.pop(context); // Cerrar el cajón
-              // Navegar a la página correspondiente
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => LostObjectsPage()),
+              );
             },
           ),
           ListTile(
@@ -651,4 +834,3 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     );
   }
 }
-
