@@ -15,15 +15,13 @@ class LostObject {
   final String uidEncontrado;
   final DateTime timestamp;
   List<String>? imageUrls;
-
-  // Otros campos
   String? estadoReclamacion;
-
-  // Lista de reclamaciones
   List<Reclamacion> reclamaciones;
+  final Map<String, double>? mapLocation;
 
-  // Nuevo campo para la ubicación del mapa
-  final Map<String, double>? mapLocation; // {'x': valor, 'y': valor}
+  // Nuevos campos
+  String? uidReclamado;
+  String? nombreReclamado;
 
   LostObject({
     required this.id,
@@ -38,7 +36,9 @@ class LostObject {
     required this.imageUrls,
     required this.reclamaciones,
     required this.estadoReclamacion,
-    this.mapLocation, // Nuevo campo añadido
+    this.mapLocation,
+    this.uidReclamado,
+    this.nombreReclamado,
   });
 
   factory LostObject.fromMap(Map<String, dynamic> data, String documentId) {
@@ -73,7 +73,9 @@ class LostObject {
       imageUrls: data['imageUrls'] != null ? List<String>.from(data['imageUrls']) : [],
       reclamaciones: reclamaciones,
       estadoReclamacion: data['estadoReclamacion'] ?? '',
-      mapLocation: mapLocation, // Asignar la ubicación del mapa
+      mapLocation: mapLocation,
+      uidReclamado: data['uidReclamado'],
+      nombreReclamado: data['nombreReclamado'],
     );
   }
 
@@ -90,7 +92,9 @@ class LostObject {
       'imageUrls': imageUrls,
       'reclamaciones': reclamaciones.map((reclamacion) => reclamacion.toMap()).toList(),
       'estadoReclamacion': estadoReclamacion,
-      'mapLocation': mapLocation, // Incluir la ubicación del mapa
+      'mapLocation': mapLocation,
+      'uidReclamado': uidReclamado,
+      'nombreReclamado': nombreReclamado,
     };
   }
 }

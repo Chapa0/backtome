@@ -11,9 +11,11 @@ import 'package:intl/intl.dart'; // Importar intl para formatear fechas
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
 import '../administradorBD/usuariosBD.dart';
+import '../usuarios/ClaimedObjectsPage.dart';
 import '../usuarios/ObjetoDetalles.dart';
 import '../usuarios/UserAccountPage.dart';
 import '../usuarios/listaObjetosAgregados.dart';
+import 'detallesEntregaObjeto.dart';
 
 
 class PageAppGeneralAdmin extends StatefulWidget {
@@ -578,7 +580,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => LostObjectDetailPage(lostObject: lostObject),
+            builder: (context) => LostObjectDetailPageAdmin(lostObject: lostObject),
           ),
         );
       },
@@ -805,7 +807,11 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
             title: Text('Objetos reclamados'),
             onTap: () {
               Navigator.pop(context); // Cerrar el cajón
-              // Navegar a la página correspondiente
+              // Navegar a la página ClaimedObjectsPage
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ClaimedObjectsPage()),
+              );
             },
           ),
         ],

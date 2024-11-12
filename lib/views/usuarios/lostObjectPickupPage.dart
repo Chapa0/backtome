@@ -16,28 +16,28 @@ class LostObjectPickupPage extends StatelessWidget {
       body: Column(
         children: [
           Expanded(
-            child: Stack(
-              children: [
-                InteractiveViewer(
-                  panEnabled: false,
-                  scaleEnabled: true,
-                  minScale: 1.0,
-                  maxScale: 5.0,
-                  child: Image.asset(
+            child: InteractiveViewer(
+              panEnabled: false,
+              scaleEnabled: true,
+              minScale: 1.0,
+              maxScale: 5.0,
+              child: Stack(
+                children: [
+                  Image.asset(
                     'assets/mapa_escuela.png',
                     fit: BoxFit.contain,
                   ),
-                ),
-                Positioned(
-                  left: pickupLocation.dx,
-                  top: pickupLocation.dy,
-                  child: Icon(
-                    Icons.location_on,
-                    size: 40,
-                    color: Colors.red,
+                  Positioned(
+                    left: pickupLocation.dx,
+                    top: pickupLocation.dy,
+                    child: Icon(
+                      Icons.location_on,
+                      size: 40,
+                      color: Colors.red,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Padding(

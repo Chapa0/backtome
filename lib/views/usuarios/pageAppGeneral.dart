@@ -11,9 +11,11 @@ import 'package:intl/intl.dart'; // Importar intl para formatear fechas
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/objetosPerdidosBD.dart';
 import '../administradorBD/usuariosBD.dart';
+import 'ClaimedObjectsPage.dart';
 import 'ObjetoDetalles.dart';
 import 'UserAccountPage.dart';
 import 'listaObjetosAgregados.dart';
+import 'lostObjectPickupPage.dart';
 
 class PageAppGeneral extends StatefulWidget {
   @override
@@ -779,7 +781,10 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             title: Text('Objetos reclamados'),
             onTap: () {
               Navigator.pop(context); // Cerrar el cajón
-              // Navegar a la página correspondiente
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ClaimedObjectsPage()),
+              );
             },
           ),
           ListTile(
@@ -788,6 +793,10 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             onTap: () {
               Navigator.pop(context); // Cerrar el cajón
               // Navegar a la página correspondiente
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => LostObjectPickupPage()),
+              );
             },
           ),
         ],

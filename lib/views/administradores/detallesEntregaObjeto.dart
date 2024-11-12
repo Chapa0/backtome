@@ -18,19 +18,20 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'fullscreen_image_detail.dart';
-import 'lostObjectPickupPage.dart';
+import '../usuarios/fullscreen_image_detail.dart';
+import '../usuarios/lostObjectPickupPage.dart';
 
-class LostObjectDetailPage extends StatefulWidget {
+
+class LostObjectDetailPageAdmin extends StatefulWidget {
   final LostObject lostObject;
 
-  LostObjectDetailPage({required this.lostObject});
+  LostObjectDetailPageAdmin({required this.lostObject});
 
   @override
-  _LostObjectDetailPageState createState() => _LostObjectDetailPageState();
+  _LostObjectDetailPageAdminState createState() => _LostObjectDetailPageAdminState();
 }
 
-class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
+class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
   final Color _primaryColor = Color(0xFF1B396A);
 
   // Controladores y variables para el formulario de reclamación
@@ -40,6 +41,7 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   List<String> imagenesUrls = []; // Inicializa con las URLs de las imágenes
   bool _isSubmitting = false;
   List<File> _selectedImages = []; // Lista de archivos locales
+  List<File> _selectedImage = []; // Lista de archivos locales
 
   // Variables para mensajes de advertencia
   final List<String> _warningMessages = [
@@ -301,7 +303,7 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
     }
 
     // Si hay menos de 5 imágenes, añadir al final el botón para añadir más imágenes.
-   /* if (_selectedImages.length < 5) {
+    /* if (_selectedImages.length < 5) {
       Widget addButton = ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Container(
@@ -327,6 +329,9 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
     return items;
   }
 
+
+  bool _showClaimantList = false;
+
   Widget build(BuildContext context) {
     final authState = Provider.of<AuthState>(context);
     final Usuario? currentUser = authState.user;
@@ -339,6 +344,31 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: _primaryColor,
+        actions: [
+          IconButton(
+            icon: Stack(
+              children: [
+                Icon(Icons.people),
+                Positioned(
+                  right: 0,
+                  child: CircleAvatar(
+                    radius: 8,
+                    backgroundColor: Colors.red,
+                    child: Text(
+                      '${widget.lostObject.reclamaciones.length}',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            onPressed: () {
+              setState(() {
+                _showClaimantList = !_showClaimantList;
+              });
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(20.0),
           child: Padding(
@@ -456,6 +486,31 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
 
             SizedBox(height: 16),
 
+            if (_showClaimantList)
+            // Show the list of claimants
+              if (isOwner)
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Lista de reclamaciones:',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor),
+                      ),
+                      SizedBox(height: 8),
+                      _buildClaimantList(),
+                    ],
+                  ),
+                )
+              else
+                Center(
+                  child: Text(
+                    'No tienes permiso para ver la lista de reclamantes.',
+                    style: TextStyle(fontSize: 16, color: Colors.redAccent),
+                  ),
+                )
+            else
             // Show the claim form or appropriate message
               if (widget.lostObject.estadoReclamacion == 'Entregado')
                 Padding(
@@ -559,6 +614,230 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   }
 
 
+  Widget _buildClaimantList() {
+    if (widget.lostObject.reclamaciones.isEmpty) {
+      return Text(
+        'No hay reclamaciones para este objeto.',
+        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+      );
+    }
+
+    if (widget.lostObject.estadoReclamacion == 'Entregado') {
+      // Buscar la reclamación que tiene estado 'Entregado'
+      Reclamacion? reclamacionEntregada = widget.lostObject.reclamaciones.firstWhere(
+            (reclamacion) => reclamacion.estadoReclamacion == 'Entregado'
+      );
+
+      if (reclamacionEntregada != null) {
+        // Mostrar información de a quién se entregó el objeto
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'El objeto fue entregado a:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor),
+            ),
+            SizedBox(height: 8),
+            Card(
+              margin: EdgeInsets.symmetric(vertical: 8.0),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: reclamacionEntregada.fotoReclamante.isNotEmpty
+                      ? NetworkImage(reclamacionEntregada.fotoReclamante)
+                      : AssetImage('assets/default_avatar.png') as ImageProvider,
+                ),
+                title: Text('${reclamacionEntregada.nombreReclamante} ${reclamacionEntregada.apellidoReclamante}'),
+                subtitle: Text('Este es el usuario al que se le entregó el objeto.'),
+                onTap: () {
+                  // Mostrar detalles de la reclamación entregada
+                  _showClaimDetailsDialog(reclamacionEntregada);
+                },
+              ),
+            ),
+          ],
+        );
+      } else {
+        // No se encontró la reclamación con estado 'Entregado'
+        return Text(
+          'No se pudo encontrar la información del reclamante al que se entregó el objeto.',
+          style: TextStyle(fontSize: 16, color: Colors.red),
+        );
+      }
+    }
+
+    // Si el objeto no ha sido entregado, mostrar la lista de reclamantes
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: widget.lostObject.reclamaciones.length,
+      itemBuilder: (context, index) {
+        final reclamacion = widget.lostObject.reclamaciones[index];
+        return Card(
+          margin: EdgeInsets.symmetric(vertical: 8.0),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundImage: reclamacion.fotoReclamante.isNotEmpty
+                  ? NetworkImage(reclamacion.fotoReclamante)
+                  : AssetImage('assets/default_avatar.png') as ImageProvider,
+            ),
+            title: Text('${reclamacion.nombreReclamante} ${reclamacion.apellidoReclamante}'),
+            subtitle: Text(reclamacion.textoReclamacion, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: ElevatedButton(
+              onPressed: () {
+                _deliverObjectToClaimant(reclamacion);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+              ),
+              child: Text('Entregar'),
+            ),
+            onTap: () {
+              // Mostrar el diálogo con detalles de la reclamación
+              _showClaimDetailsDialog(reclamacion);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+
+
+  // Método para mostrar el diálogo con detalles de la reclamación
+  void _showClaimDetailsDialog(Reclamacion reclamacion) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Detalles de la reclamación'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reclamante: ${reclamacion.nombreReclamante} ${reclamacion.apellidoReclamante}',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text('Fecha de reclamación: ${_formatDateTime(reclamacion.horaReclamacion)}'),
+                SizedBox(height: 8),
+                Text('Descripción:'),
+                Text(reclamacion.textoReclamacion),
+                SizedBox(height: 16),
+                if (reclamacion.imagenReclamacionUrl != null && reclamacion.imagenReclamacionUrl!.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      // Abrir imagen en pantalla completa
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FullScreenImageViewer(images: _selectedImage, initialIndex: 0),
+                        ),
+                      );
+                    },
+                    child: Image.network(
+                      reclamacion.imagenReclamacionUrl!,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  Future<void> _loadImage(String imageUrl) async {
+    try {
+      File imageFile = await _urlToFile(imageUrl);
+      setState(() {
+        _selectedImage = [imageFile];
+      });
+    } catch (e) {
+      print("Error al cargar la imagen: $e");
+      // Opcionalmente, maneja el error, por ejemplo, mostrando un mensaje al usuario
+    }
+  }
+
+  String _formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _deliverObjectToClaimant(Reclamacion reclamacion) async {
+    // Mostrar diálogo de confirmación
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar entrega'),
+        content: Text('¿Estás seguro de que deseas entregar el objeto a ${reclamacion.nombreReclamante}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Actualizar el objeto en Firestore
+      try {
+        // Actualizar el estado de las reclamaciones
+        List<Reclamacion> updatedReclamaciones = widget.lostObject.reclamaciones.map((r) {
+          if (r.uidReclamante == reclamacion.uidReclamante) {
+            r.estadoReclamacion = 'Entregado';
+          } else {
+            r.estadoReclamacion = 'Rechazado';
+          }
+          return r;
+        }).toList();
+
+        await FirebaseFirestore.instance
+            .collection('objetos_perdidos')
+            .doc(widget.lostObject.id)
+            .update({
+          'estadoReclamacion': 'Entregado',
+          'uidReclamado': reclamacion.uidReclamante,
+          'nombreReclamado': reclamacion.nombreReclamante,
+          'reclamaciones': updatedReclamaciones.map((r) => r.toMap()).toList(),
+        });
+
+        // Actualizar el estado local del objeto
+        setState(() {
+          widget.lostObject.estadoReclamacion = 'Entregado';
+          widget.lostObject.uidReclamado = reclamacion.uidReclamante;
+          widget.lostObject.nombreReclamado = reclamacion.nombreReclamante;
+          widget.lostObject.reclamaciones = updatedReclamaciones;
+        });
+
+        // Mostrar mensaje de éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Objeto entregado a ${reclamacion.nombreReclamante}')),
+        );
+      } catch (e) {
+        print('Error al actualizar el objeto: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al entregar el objeto')),
+        );
+      }
+    }
+  }
+
+
   Future<void> _showLoadingDialog() async {
     _currentWarningMessage = _warningMessages[0];
     int messageIndex = 0;
@@ -607,3 +886,7 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   }
 
 }
+
+
+
+
