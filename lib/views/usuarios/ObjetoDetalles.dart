@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'LostObjectMapPage.dart';
 import 'fullscreen_image_detail.dart';
 import 'lostObjectPickupPage.dart';
 
@@ -427,7 +428,7 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                         ),
                         SizedBox(height: 16),
                         // Estado de la reclamación (si existe)
-                        if (widget.lostObject.estadoReclamacion != null)
+                        if (widget.lostObject.estadoReclamacion != 'No reclamado')
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -447,6 +448,30 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                               ),
                             ],
                           ),
+                        SizedBox(height: 16),
+                        // Botón para ver la ubicación en el mapa
+                        SizedBox(height: 16),
+                        if (widget.lostObject.mapLocation != null)
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => LostObjectMapPage(
+                                    mapLocation: widget.lostObject.mapLocation!,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: Icon(Icons.map, color: Colors.white),
+                            label: Text('Ver ubicación en el mapa', style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primaryColor,
+                            ),
+                          ),
+
+                        SizedBox(height: 24),
+
                       ],
                     ),
                   ),

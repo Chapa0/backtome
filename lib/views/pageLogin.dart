@@ -12,14 +12,15 @@ import 'administradorBD/usuariosBD.dart';
 import 'administradores/AdminHomePage.dart'; // Importa la página principal del administrador
 
 class PageLogin extends StatefulWidget {
+  final Color background;
+
+  PageLogin({this.background = const Color(0xFFE1EDFF)});
+
   @override
   _PageLoginState createState() => _PageLoginState();
 }
 
-
 class _PageLoginState extends State<PageLogin> {
-  final Color _backgroundColor = Color(0xFFE1EDFF);
-
   // Variables útiles para la autenticación
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _correoController = TextEditingController();
@@ -88,6 +89,17 @@ class _PageLoginState extends State<PageLogin> {
       );
       print("Signed in as: ${userCredential.user?.email}");
 
+      // Verificar si el correo electrónico está verificado
+      if (!userCredential.user!.emailVerified) {
+        await _auth.signOut();
+        _showSnackBar(
+            "Tu correo electrónico no está verificado. Por favor, verifica tu correo electrónico y vuelve a iniciar sesión.");
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
       // Cargar datos de usuario desde Firestore
       final DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('usuarios')
@@ -100,9 +112,11 @@ class _PageLoginState extends State<PageLogin> {
       }
 
       // Asumiendo que tienes una clase Usuario con un método fromMap
-      final Usuario usuario = Usuario.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      final Usuario usuario =
+      Usuario.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       bool isAdmin = usuario.tipoUsuario == 'admin';
-      print("Usuario: ${usuario.nombre} ${usuario.apellido} (${usuario.correo}) - ${usuario.tipoUsuario}");
+      print(
+          "Usuario: ${usuario.nombre} ${usuario.apellido} (${usuario.correo}) - ${usuario.tipoUsuario}");
 
       // Guarda los datos en SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -122,7 +136,8 @@ class _PageLoginState extends State<PageLogin> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => PageAppGeneralAdmin(), // Asegúrate de que esta sea la página correcta
+            builder: (context) =>
+                PageAppGeneralAdmin(), // Asegúrate de que esta sea la página correcta
           ),
               (route) => false,
         );
@@ -152,16 +167,19 @@ class _PageLoginState extends State<PageLogin> {
           errorMessage = "Esta cuenta ha sido deshabilitada.";
           break;
         case 'too-many-requests':
-          errorMessage = "Demasiados intentos. Por favor, intenta más tarde.";
+          errorMessage =
+          "Demasiados intentos. Por favor, intenta más tarde.";
           break;
         default:
-          errorMessage = "Error al iniciar sesión. Por favor, intenta de nuevo.";
+          errorMessage =
+          "Error al iniciar sesión. Por favor, intenta de nuevo.";
       }
       _showSnackBar(errorMessage);
       print("Error de FirebaseAuth: $e");
     } catch (e) {
       // Manejo de otros errores
-      _showSnackBar("Ocurrió un error inesperado. Por favor, intenta de nuevo.");
+      _showSnackBar(
+          "Ocurrió un error inesperado. Por favor, intenta de nuevo.");
       print("Error inesperado: $e");
     } finally {
       // Ocultar la pantalla de carga
@@ -169,6 +187,87 @@ class _PageLoginState extends State<PageLogin> {
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  // Método para enviar correo de restablecimiento de contraseña
+  Future<void> _resetPassword() async {
+    String email = '';
+
+    // Mostrar un diálogo para que el usuario ingrese su correo electrónico
+    await showDialog(
+      context: context,
+      builder: (context) {
+        final TextEditingController _emailController = TextEditingController();
+        return AlertDialog(
+          title: Text('Recuperar contraseña'),
+          content: TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: 'Correo electrónico',
+              hintText: 'Ingresa tu correo electrónico',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                email = _emailController.text.trim();
+                Navigator.of(context).pop();
+              },
+              child: Text('Enviar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (email.isNotEmpty) {
+      // Mostrar indicador de carga
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Enviar correo de restablecimiento de contraseña
+        await _auth.sendPasswordResetEmail(email: email);
+        _showSnackBar(
+            'Se ha enviado un correo para restablecer tu contraseña.');
+      } on FirebaseAuthException catch (e) {
+        String errorMessage;
+        switch (e.code) {
+          case 'invalid-email':
+            errorMessage =
+            "Correo inválido. Por favor, verifica el formato.";
+            break;
+          case 'user-not-found':
+            errorMessage =
+            "No existe una cuenta con este correo.";
+            break;
+          default:
+            errorMessage =
+            "Error al enviar el correo. Por favor, intenta de nuevo.";
+        }
+        _showSnackBar(errorMessage);
+        print("Error de FirebaseAuth: $e");
+      } catch (e) {
+        _showSnackBar(
+            "Ocurrió un error inesperado. Por favor, intenta de nuevo.");
+        print("Error inesperado: $e");
+      } finally {
+        // Ocultar indicador de carga
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -183,12 +282,13 @@ class _PageLoginState extends State<PageLogin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _backgroundColor,
+      backgroundColor: widget.background,
       body: Stack(
         children: [
           Padding(
             padding: const EdgeInsets.all(20.0),
-            child: SingleChildScrollView( // Para evitar overflow en pantallas pequeñas
+            child: SingleChildScrollView(
+              // Para evitar overflow en pantallas pequeñas
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -246,15 +346,13 @@ class _PageLoginState extends State<PageLogin> {
                     },
                   ),
                   SizedBox(height: 10),
-                  // Recordar contraseña checkbox (si lo necesitas, puedes implementarlo aquí)
-
-                  SizedBox(height: 20),
                   // Botón de Iniciar Sesión
                   ElevatedButton(
                     onPressed: _signIn,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
-                      padding: EdgeInsets.symmetric(horizontal: 60, vertical: 15),
+                      padding:
+                      EdgeInsets.symmetric(horizontal: 60, vertical: 15),
                     ),
                     child: Text(
                       "Iniciar Sesión",
@@ -269,7 +367,8 @@ class _PageLoginState extends State<PageLogin> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => PageCrearCuenta(background: _backgroundColor),
+                          builder: (context) =>
+                              PageCrearCuenta(background: widget.background),
                         ),
                       );
                     },
@@ -278,7 +377,19 @@ class _PageLoginState extends State<PageLogin> {
                       style: TextStyle(fontSize: 16, color: Colors.blue),
                     ),
                   ),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: TextButton(
+                      onPressed: _resetPassword,
+                      child: Text(
+                        "¿Olvidaste tu contraseña?",
+                        style: TextStyle(color: Colors.blue),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
                 ],
+
               ),
             ),
           ),

@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../usuarios/LostObjectMapPage.dart';
 import '../usuarios/fullscreen_image_detail.dart';
 import '../usuarios/lostObjectPickupPage.dart';
 
@@ -457,26 +458,51 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                         ),
                         SizedBox(height: 16),
                         // Estado de la reclamación (si existe)
-                        if (widget.lostObject.estadoReclamacion != null)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Estado de la reclamación:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  color: _primaryColor,
+                        widget.lostObject.estadoReclamacion != 'No reclamado'
+                            ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Estado de la reclamación:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: _primaryColor,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              widget.lostObject.estadoReclamacion!,
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            SizedBox(height: 16),
+                          ],
+                        )
+                            : SizedBox.shrink(),
+
+                        SizedBox(height: 16),
+                        // Dentro de tu método build, después de mostrar los detalles
+                        if (widget.lostObject.mapLocation != null)
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => LostObjectMapPage(
+                                    mapLocation: widget.lostObject.mapLocation!,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                widget.lostObject.estadoReclamacion!,
-                                style: TextStyle(
-                                    fontSize: 16, color: Colors.grey[700]),
-                              ),
-                            ],
+                              );
+                            },
+                            icon: Icon(Icons.map, color: Colors.white),
+                            label: Text('Ver ubicación en el mapa', style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primaryColor,
+                            ),
                           ),
+
+                        SizedBox(height: 24),
+
                       ],
                     ),
                   ),

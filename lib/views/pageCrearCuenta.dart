@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/usuarioRegistrado.dart';
 import 'administradorBD/usuariosBD.dart'; // Importa la clase Usuario
+import 'pageLogin.dart'; // Asegúrate de tener esta importación para navegar al login
 
 class PageCrearCuenta extends StatefulWidget {
   final Color background;
@@ -136,7 +137,7 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
     }
   }
 
-  // Función de registro actualizada
+  // Función de registro actualizada con verificación de correo electrónico
   Future<void> _signUp() async {
     // Obtener y limpiar los textos de los campos
     String nombre = _nombreController.text.trim();
@@ -216,52 +217,64 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
         password: password,
       );
 
-      String uid = userCredential.user!.uid;
+      User? user = userCredential.user;
 
-      String imageUrl = '';
-      if (_imageFile != null) {
-        // Subir la imagen y obtener la URL
-        String? uploadedUrl = await _uploadImage(_imageFile!, uid);
-        if (uploadedUrl != null) {
-          imageUrl = uploadedUrl;
+      if (user != null) {
+        // Enviar correo de verificación
+        await user.sendEmailVerification();
+
+        String uid = user.uid;
+
+        String imageUrl = '';
+        if (_imageFile != null) {
+          // Subir la imagen y obtener la URL
+          String? uploadedUrl = await _uploadImage(_imageFile!, uid);
+          if (uploadedUrl != null) {
+            imageUrl = uploadedUrl;
+          }
         }
+
+        // Crear una instancia de Usuario con los datos ingresados
+        Usuario newUser = Usuario(
+          id: uid,
+          nombre: nombre,
+          apellido: apellidos,
+          correo: correo,
+          urlimagen: imageUrl, // URL de la imagen subida
+          tipoUsuario: 'user',
+        );
+
+        // Guardar los datos del usuario en Firestore
+        await _firestore.collection('usuarios').doc(uid).set(newUser.toMap());
+
+        // Cerrar sesión del usuario
+        await _auth.signOut();
+
+        // Mostrar un diálogo informando al usuario
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Verifica tu correo electrónico'),
+            content: Text(
+                'Se ha enviado un correo de verificación a $correo. Por favor, verifica tu correo electrónico para activar tu cuenta.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Navegar a la página de inicio de sesión
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => PageLogin()), // Asegúrate de tener esta página
+                        (route) => false,
+                  );
+                },
+                child: Text('Aceptar'),
+              ),
+            ],
+          ),
+        );
       }
-
-      // Crear una instancia de Usuario con los datos ingresados
-      Usuario newUser = Usuario(
-        id: uid,
-        nombre: nombre,
-        apellido: apellidos,
-        correo: correo,
-        urlimagen: imageUrl, // URL de la imagen subida
-        tipoUsuario: 'user',
-      );
-
-      final authState = Provider.of<AuthState>(context, listen: false);
-
-      // Guardar los datos del usuario en Firestore
-      await _firestore.collection('usuarios').doc(uid).set(newUser.toMap());
-
-      authState.setUser(newUser);
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      final usuarioMap = newUser.toMap();
-      usuarioMap['id'] = newUser.id;
-
-      final String usuarioJson = json.encode(usuarioMap);
-      await prefs.setString('userData', usuarioJson);
-
-      // Guardar los datos en SharedPreferences
-      await prefs.setString('userRole', 'user');
-
-      // Navegar a la pantalla principal
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PageAppGeneral(),
-        ),
-            (route) => false,
-      );
     } on FirebaseAuthException catch (e) {
       // Manejo de errores específicos de FirebaseAuth
       String errorMessage;
@@ -457,8 +470,6 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
                   },
                 ),
                 SizedBox(height: 15),
-                // Checkbox para mantener la sesión iniciada (opcional)
-                // Puedes agregar un Checkbox si lo deseas
                 SizedBox(height: 30),
                 // Botón Crear cuenta
                 ElevatedButton(

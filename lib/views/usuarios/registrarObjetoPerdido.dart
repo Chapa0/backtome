@@ -272,6 +272,7 @@ class _AddLostObjectPageState extends State<AddLostObjectPage> {
         'tipoObjeto': _objectType,
         'tipoObjetoBusqueda': _objectType.toLowerCase(),
         'lugarEncontrado': _locationFound,
+        'estadoReclamacion': 'No reclamado',
         'imagenUrl': imageUrls.first, // URL de la primera imagen
         'imageUrls': imageUrls, // Lista de URLs de imágenes
         'nombreEncontrado': currentUser.nombre,

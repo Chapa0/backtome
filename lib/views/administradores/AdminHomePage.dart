@@ -427,7 +427,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
                 }
               });
             },
-            icon: Icon(Icons.filter_list, color: Colors.white),
+            icon: Icon(Icons.calendar_month_outlined, color: Colors.white),
             label: Text(
               _rangeStart != null && _rangeEnd != null
                   ? _isSameDate(_rangeStart!, _rangeEnd!)
@@ -644,6 +644,28 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
                         'En proceso de reclamación',
                         style: TextStyle(
                           color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (lostObject.estadoReclamacion == 'Entregado')
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12.0),
+                          bottomRight: Radius.circular(8.0),
+                        ),
+                      ),
+                      child: Text(
+                        'Entregado',
+                        style: TextStyle(
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
