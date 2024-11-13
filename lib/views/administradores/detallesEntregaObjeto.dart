@@ -514,7 +514,6 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
 
             if (_showClaimantList)
             // Show the list of claimants
-              if (isOwner)
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -527,13 +526,6 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                       SizedBox(height: 8),
                       _buildClaimantList(),
                     ],
-                  ),
-                )
-              else
-                Center(
-                  child: Text(
-                    'No tienes permiso para ver la lista de reclamantes.',
-                    style: TextStyle(fontSize: 16, color: Colors.redAccent),
                   ),
                 )
             else
