@@ -125,7 +125,6 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
   // Función para obtener los objetos perdidos con filtrado por fecha y/o búsqueda
   void _setupLostObjectsListener({bool isRefresh = false}) {
-
     try {
       // Cancelar cualquier suscripción previa si existe
       if (_lostObjectsSubscription != null) {
@@ -133,10 +132,13 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         _lostObjectsSubscription = null;
       }
 
+      // Obtener el usuario actual
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final Usuario? currentUser = authState.user;
+
       // Determinar el tipo de consulta según los filtros activos
       if (_searchQuery.isNotEmpty && _rangeStart != null && _rangeEnd != null) {
         // **Caso 3: Filtrado por fecha y búsqueda por objeto**
-        // Realizar una consulta solo por fecha y luego filtrar localmente
 
         DateTime startOfStart = _getStartOfDay(_rangeStart!);
         DateTime endOfEnd = _getEndOfDay(_rangeEnd!);
@@ -144,14 +146,42 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           _isLoading = true;
         });
 
-        Query query = FirebaseFirestore.instance.collection('objetos_perdidos')
+        // Consultas para objetos aprobados y propios no aprobados dentro del rango de fechas y con el término de búsqueda
+        Query queryApproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('aprobado', isEqualTo: true)
             .where('timestamp', isGreaterThanOrEqualTo: startOfStart)
             .where('timestamp', isLessThanOrEqualTo: endOfEnd)
             .orderBy('timestamp', descending: true);
 
-        // Obtener los datos una sola vez (no en tiempo real)
-        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
-          final newObjects = querySnapshot.docs.map((doc) {
+        Query queryOwnUnapproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('uidEncontrado', isEqualTo: currentUser?.id)
+            .where('aprobado', isEqualTo: false)
+            .where('timestamp', isGreaterThanOrEqualTo: startOfStart)
+            .where('timestamp', isLessThanOrEqualTo: endOfEnd)
+            .orderBy('timestamp', descending: true);
+
+        Future.wait([
+          queryApproved.get(),
+          queryOwnUnapproved.get(),
+        ]).then((List<QuerySnapshot> results) {
+          final approvedDocs = results[0].docs;
+          final ownUnapprovedDocs = results[1].docs;
+
+          // Combinar y eliminar duplicados
+          final allDocs = {for (var doc in approvedDocs) doc.id: doc};
+          for (var doc in ownUnapprovedDocs) {
+            allDocs[doc.id] = doc;
+          }
+
+          // Filtrar por término de búsqueda
+          final combinedDocs = allDocs.values.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final tipoObjeto = data['tipoObjeto']?.toString().toLowerCase() ?? '';
+            return tipoObjeto.contains(_searchQuery.toLowerCase());
+          }).toList();
+
+          // Convertir a instancias de LostObject
+          final newObjects = combinedDocs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return LostObject.fromMap(data, doc.id);
           }).toList();
@@ -163,8 +193,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               _lostObjects.addAll(newObjects);
             }
 
-            if (querySnapshot.docs.isNotEmpty) {
-              _lastDocument = querySnapshot.docs.last;
+            if (combinedDocs.isNotEmpty) {
+              _lastDocument = combinedDocs.last;
               _hasMore = newObjects.length == _perPage;
             } else {
               _hasMore = false;
@@ -172,8 +202,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
             _isLoading = false;
           });
-        }, onError: (error) {
-          print("Error al cargar los objetos perdidos desde Firestore: $error");
+        }).catchError((error) {
+          print("Error al cargar los objetos perdidos: $error");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error al cargar los objetos perdidos.')),
           );
@@ -184,15 +214,20 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
       } else if (_searchQuery.isNotEmpty) {
         // **Caso 2: Solo búsqueda por objeto**
-        // Configurar la consulta con el término de búsqueda
 
-        Query query = FirebaseFirestore.instance.collection('objetos_perdidos');
-
-        String searchLower = _searchQuery.toLowerCase();
-        query = query
+        Query queryApproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('aprobado', isEqualTo: true)
             .orderBy('tipoObjeto')
-            .startAt([searchLower])
-            .endAt([searchLower + '\uf8ff'])
+            .startAt([_searchQuery.toLowerCase()])
+            .endAt([_searchQuery.toLowerCase() + '\uf8ff'])
+            .limit(_perPage);
+
+        Query queryOwnUnapproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('uidEncontrado', isEqualTo: currentUser?.id)
+            .where('aprobado', isEqualTo: false)
+            .orderBy('tipoObjeto')
+            .startAt([_searchQuery.toLowerCase()])
+            .endAt([_searchQuery.toLowerCase() + '\uf8ff'])
             .limit(_perPage);
 
         if (isRefresh) {
@@ -201,12 +236,22 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           _lostObjects = [];
         }
 
-        if (_lastDocument != null && !isRefresh) {
-          query = query.startAfterDocument(_lastDocument!);
-        }
+        Future.wait([
+          queryApproved.get(),
+          queryOwnUnapproved.get(),
+        ]).then((List<QuerySnapshot> results) {
+          final approvedDocs = results[0].docs;
+          final ownUnapprovedDocs = results[1].docs;
 
-        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
-          final newObjects = querySnapshot.docs.map((doc) {
+          // Combinar y eliminar duplicados
+          final allDocs = {for (var doc in approvedDocs) doc.id: doc};
+          for (var doc in ownUnapprovedDocs) {
+            allDocs[doc.id] = doc;
+          }
+
+          final combinedDocs = allDocs.values.toList();
+
+          final newObjects = combinedDocs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return LostObject.fromMap(data, doc.id);
           }).toList();
@@ -218,8 +263,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               _lostObjects.addAll(newObjects);
             }
 
-            if (querySnapshot.docs.isNotEmpty) {
-              _lastDocument = querySnapshot.docs.last;
+            if (combinedDocs.isNotEmpty) {
+              _lastDocument = combinedDocs.last;
               _hasMore = newObjects.length == _perPage;
             } else {
               _hasMore = false;
@@ -227,8 +272,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
             _isLoading = false;
           });
-        }, onError: (error) {
-          print("Error al cargar los objetos perdidos desde Firestore: $error");
+        }).catchError((error) {
+          print("Error al cargar los objetos perdidos: $error");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error al cargar los objetos perdidos.')),
           );
@@ -239,12 +284,20 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
       } else if (_rangeStart != null && _rangeEnd != null) {
         // **Caso 1: Solo filtrado por fecha**
-        // Configurar la consulta con el rango de fechas
 
         DateTime startOfStart = _getStartOfDay(_rangeStart!);
         DateTime endOfEnd = _getEndOfDay(_rangeEnd!);
 
-        Query query = FirebaseFirestore.instance.collection('objetos_perdidos')
+        Query queryApproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('aprobado', isEqualTo: true)
+            .where('timestamp', isGreaterThanOrEqualTo: startOfStart)
+            .where('timestamp', isLessThanOrEqualTo: endOfEnd)
+            .orderBy('timestamp', descending: true)
+            .limit(_perPage);
+
+        Query queryOwnUnapproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('uidEncontrado', isEqualTo: currentUser?.id)
+            .where('aprobado', isEqualTo: false)
             .where('timestamp', isGreaterThanOrEqualTo: startOfStart)
             .where('timestamp', isLessThanOrEqualTo: endOfEnd)
             .orderBy('timestamp', descending: true)
@@ -255,13 +308,23 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           _hasMore = true;
           _lostObjects = [];
         }
-        // Si no es una actualización, continuar desde el último documento
-        if (_lastDocument != null && !isRefresh) {
-          query = query.startAfterDocument(_lastDocument!);
-        }
-        // Escuchar los cambios en tiempo real
-        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
-          final newObjects = querySnapshot.docs.map((doc) {
+
+        Future.wait([
+          queryApproved.get(),
+          queryOwnUnapproved.get(),
+        ]).then((List<QuerySnapshot> results) {
+          final approvedDocs = results[0].docs;
+          final ownUnapprovedDocs = results[1].docs;
+
+          // Combinar y eliminar duplicados
+          final allDocs = {for (var doc in approvedDocs) doc.id: doc};
+          for (var doc in ownUnapprovedDocs) {
+            allDocs[doc.id] = doc;
+          }
+
+          final combinedDocs = allDocs.values.toList();
+
+          final newObjects = combinedDocs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return LostObject.fromMap(data, doc.id);
           }).toList();
@@ -273,8 +336,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               _lostObjects.addAll(newObjects);
             }
 
-            if (querySnapshot.docs.isNotEmpty) {
-              _lastDocument = querySnapshot.docs.last;
+            if (combinedDocs.isNotEmpty) {
+              _lastDocument = combinedDocs.last;
               _hasMore = newObjects.length == _perPage;
             } else {
               _hasMore = false;
@@ -282,8 +345,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
             _isLoading = false;
           });
-        }, onError: (error) {
-          print("Error al cargar los objetos perdidos desde Firestore: $error");
+        }).catchError((error) {
+          print("Error al cargar los objetos perdidos: $error");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error al cargar los objetos perdidos.')),
           );
@@ -294,9 +357,15 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
       } else {
         // **Caso 0: Sin filtros**
-        // Configurar la consulta por defecto
 
-        Query query = FirebaseFirestore.instance.collection('objetos_perdidos')
+        Query queryApproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('aprobado', isEqualTo: true)
+            .orderBy('timestamp', descending: true)
+            .limit(_perPage);
+
+        Query queryOwnUnapproved = FirebaseFirestore.instance.collection('objetos_perdidos')
+            .where('uidEncontrado', isEqualTo: currentUser?.id)
+            .where('aprobado', isEqualTo: false)
             .orderBy('timestamp', descending: true)
             .limit(_perPage);
 
@@ -306,33 +375,44 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           _lostObjects = [];
         }
 
-        if (_lastDocument != null && !isRefresh) {
-          query = query.startAfterDocument(_lastDocument!);
-        }
+        Future.wait([
+          queryApproved.get(),
+          queryOwnUnapproved.get(),
+        ]).then((List<QuerySnapshot> results) {
+          final approvedDocs = results[0].docs;
+          final ownUnapprovedDocs = results[1].docs;
 
-        _lostObjectsSubscription = query.snapshots().listen((QuerySnapshot querySnapshot) {
-          final newObjects = querySnapshot.docs.map((doc) {
+          // Combinar y eliminar duplicados
+          final allDocs = {for (var doc in approvedDocs) doc.id: doc};
+          for (var doc in ownUnapprovedDocs) {
+            allDocs[doc.id] = doc;
+          }
+
+          final combinedDocs = allDocs.values.toList();
+
+          final newObjects = combinedDocs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return LostObject.fromMap(data, doc.id);
           }).toList();
 
           setState(() {
-
+            if (isRefresh) {
               _lostObjects = newObjects;
+            } else {
+              _lostObjects.addAll(newObjects);
+            }
 
-
-            if (querySnapshot.docs.isNotEmpty) {
-              _lastDocument = querySnapshot.docs.last;
+            if (combinedDocs.isNotEmpty) {
+              _lastDocument = combinedDocs.last;
               _hasMore = newObjects.length == _perPage;
             } else {
               _hasMore = false;
             }
 
             _isLoading = false;
-            print('Objetos perdidos cargados: ${_lostObjects.length}');
           });
-        }, onError: (error) {
-          print("Error al cargar los objetos perdidos desde Firestore: $error");
+        }).catchError((error) {
+          print("Error al cargar los objetos perdidos: $error");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error al cargar los objetos perdidos.')),
           );
@@ -573,6 +653,13 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
   // Widget para construir cada elemento de la lista
   Widget _buildLostObjectItem(LostObject lostObject) {
+    // Obtener el usuario actual
+    final authState = Provider.of<AuthState>(context, listen: false);
+    final Usuario? currentUser = authState.user;
+
+    // Definir GlobalKeys para los iconos
+    final GlobalKey iconKey = GlobalKey();
+
     return GestureDetector(
       onTap: () {
         // Navegar a la pantalla de detalles al tocar el card
@@ -670,6 +757,55 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                       ),
                     ),
                   ),
+                // **Nuevos Iconos de Aprobación en la esquina superior derecha**
+                // Icono de aprobación pendiente
+                if (lostObject.aprobado == false && lostObject.uidEncontrado == currentUser?.id)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      key: iconKey, // Asignar el GlobalKey
+                      onTap: () {
+                        _showApprovalInfo(context, approved: false, iconKey: iconKey);
+                      },
+                      child: Container(
+                        padding: EdgeInsets.all(4.0),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.8), // Fondo naranja semi-transparente
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.hourglass_empty,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Icono de aprobado
+                if (lostObject.aprobado == true && lostObject.uidEncontrado == currentUser?.id)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      key: iconKey, // Asignar el GlobalKey
+                      onTap: () {
+                        _showApprovalInfo(context, approved: true, iconKey: iconKey);
+                      },
+                      child: Container(
+                        padding: EdgeInsets.all(4.0),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.8), // Fondo verde semi-transparente
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
             // Datos del objeto perdido
@@ -730,6 +866,30 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         ),
       );
     }
+  }
+
+  // Función para mostrar el contenedor flotante con animación
+  void _showApprovalInfo(BuildContext context, {required bool approved, required GlobalKey iconKey}) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    // Obtener la posición del icono utilizando el GlobalKey
+    RenderBox renderBox = iconKey.currentContext?.findRenderObject() as RenderBox;
+    Offset position = renderBox.localToGlobal(Offset.zero);
+    Size size = renderBox.size;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => ApprovalInfoOverlay(
+        approved: approved,
+        position: position,
+        size: size,
+        onClose: () {
+          overlayEntry.remove();
+        },
+      ),
+    );
+
+    overlay?.insert(overlayEntry);
   }
 
   // Widget para el cajón inferior (Bottom Drawer)
@@ -865,3 +1025,134 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     );
   }
 }
+
+class ApprovalInfoOverlay extends StatefulWidget {
+  final bool approved;
+  final Offset position;
+  final Size size;
+  final VoidCallback onClose;
+
+  ApprovalInfoOverlay({
+    required this.approved,
+    required this.position,
+    required this.size,
+    required this.onClose,
+  });
+
+  @override
+  _ApprovalInfoOverlayState createState() => _ApprovalInfoOverlayState();
+}
+
+class _ApprovalInfoOverlayState extends State<ApprovalInfoOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _rippleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 300),
+    );
+
+    _rippleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
+    _animationController.forward();
+
+    // Cerrar el overlay al tocar fuera o después de 5 segundos
+    Future.delayed(Duration(seconds: 5), () {
+      if (mounted) {
+        widget.onClose();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Obtener el tamaño de la pantalla
+    final screenSize = MediaQuery.of(context).size;
+
+    // Calcular la posición del contenedor flotante
+    // Ajusta los valores según necesites
+    double containerTop = widget.position.dy - 10;
+    double containerRight = screenSize.width - widget.position.dx - widget.size.width - 10;
+
+    // Asegurar que el contenedor no salga de la pantalla
+    if (containerTop < 0) containerTop = 10;
+    if (containerRight < 0) containerRight = 10;
+
+    return GestureDetector(
+      onTap: () {
+        widget.onClose();
+      },
+      child: Material(
+        color: Colors.transparent, // Fondo transparente para permitir ver la animación
+        child: Stack(
+          children: [
+            // Animación de Ripple
+            Positioned(
+              top: widget.position.dy + widget.size.height / 2 - 50 * _rippleAnimation.value,
+              right: screenSize.width - widget.position.dx - widget.size.width / 2 - 50 * _rippleAnimation.value,
+              child: AnimatedBuilder(
+                animation: _rippleAnimation,
+                builder: (context, child) {
+                  return Container(
+                    width: 100 * _rippleAnimation.value,
+                    height: 100 * _rippleAnimation.value,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.approved
+                          ? Colors.green.withOpacity(0.5)
+                          : Colors.orange.withOpacity(0.5),
+                    ),
+                  );
+                },
+              ),
+            ),
+            // Contenedor con el mensaje
+            Positioned(
+              top: containerTop,
+              right: containerRight,
+              child: FadeTransition(
+                opacity: _animationController,
+                child: ScaleTransition(
+                  scale: _animationController,
+                  child: Container(
+                    width: 250, // Ajusta el ancho según tus necesidades
+                    padding: EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: widget.approved ? Colors.green : Colors.orange,
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: Text(
+                      widget.approved
+                          ? 'Este objeto ha sido aprobado y ahora es visible para todos.'
+                          : 'Este objeto está en proceso de aceptación y no será mostrado hasta que sea aprobado.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+

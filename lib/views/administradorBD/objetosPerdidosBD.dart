@@ -14,7 +14,8 @@ class LostObject {
   final String nombreEncontrado;
   final String uidEncontrado;
   final DateTime timestamp;
-  List<String>? imageUrls;
+  late  bool? aprobado;
+  final List<String>? imageUrls;
   String? estadoReclamacion;
   List<Reclamacion> reclamaciones;
   final Map<String, double>? mapLocation;
@@ -33,6 +34,7 @@ class LostObject {
     required this.nombreEncontrado,
     required this.uidEncontrado,
     required this.timestamp,
+    required this.aprobado,
     required this.imageUrls,
     required this.reclamaciones,
     required this.estadoReclamacion,
@@ -70,6 +72,7 @@ class LostObject {
       timestamp: data['timestamp'] != null
           ? (data['timestamp'] as Timestamp).toDate()
           : DateTime.now(),
+      aprobado: data['aprobado'],
       imageUrls: data['imageUrls'] != null ? List<String>.from(data['imageUrls']) : [],
       reclamaciones: reclamaciones,
       estadoReclamacion: data['estadoReclamacion'] ?? '',
@@ -89,6 +92,7 @@ class LostObject {
       'nombreEncontrado': nombreEncontrado,
       'uidEncontrado': uidEncontrado,
       'timestamp': timestamp,
+      'aprobado': aprobado,
       'imageUrls': imageUrls,
       'reclamaciones': reclamaciones.map((reclamacion) => reclamacion.toMap()).toList(),
       'estadoReclamacion': estadoReclamacion,

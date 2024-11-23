@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/services/usuarioRegistrado.dart';
 import 'package:flutter_backtome/views/administradorBD/usuariosBD.dart';
@@ -15,7 +16,16 @@ import 'views/usuarios/pageAppGeneral.dart'; // Pantalla principal para usuarios
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // Si usas FlutterFire CLI
+  );
 
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug,
+    appleProvider: AppleProvider.debug,
+    // Para producción, reemplaza con los proveedores adecuados
+    // webRecaptchaSiteKey: 'tu-sitio-clave-de-recaptcha',
+  );
   // verificar y asegurar que firebase se inicialice una sola vez
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(

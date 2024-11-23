@@ -1,15 +1,16 @@
+// Importaciones necesarias
 import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_backtome/views/pageCrearCuenta.dart';
-import 'package:flutter_backtome/views/usuarios/pageAppGeneral.dart';
-import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../services/usuarioRegistrado.dart';
 import 'administradorBD/usuariosBD.dart';
-import 'administradores/AdminHomePage.dart'; // Importa la página principal del administrador
+import 'completarRegistro.dart';
+import 'pageCrearCuenta.dart';
+import 'administradores/AdminHomePage.dart';
+import 'usuarios/pageAppGeneral.dart';
 
 class PageLogin extends StatefulWidget {
   final Color background;
@@ -21,19 +22,15 @@ class PageLogin extends StatefulWidget {
 }
 
 class _PageLoginState extends State<PageLogin> {
-  // Variables útiles para la autenticación
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _correoController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // Variables para mensajes de error en caso de que alguno esté mal
   String? _correoError;
   String? _passwordError;
 
-  // Variable para controlar el estado de carga
   bool _isLoading = false;
 
-  // Método para mostrar SnackBar
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -43,13 +40,10 @@ class _PageLoginState extends State<PageLogin> {
     );
   }
 
-  // Método para iniciar sesión
   Future<void> _signIn() async {
-    // Obtener y limpiar los textos de los campos
     String email = _correoController.text.trim();
     String password = _passwordController.text.trim();
 
-    // Inicialmente, asumimos que no hay errores
     bool hasError = false;
 
     setState(() {
@@ -57,7 +51,6 @@ class _PageLoginState extends State<PageLogin> {
       _passwordError = null;
     });
 
-    // Validar que los campos no estén vacíos
     if (email.isEmpty) {
       setState(() {
         _correoError = 'El correo es obligatorio';
@@ -73,23 +66,20 @@ class _PageLoginState extends State<PageLogin> {
     }
 
     if (hasError) {
-      return; // No proceder si hay errores
+      return;
     }
 
-    // Mostrar la pantalla de carga
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Intentar iniciar sesión con FirebaseAuth
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       print("Signed in as: ${userCredential.user?.email}");
 
-      // Verificar si el correo electrónico está verificado
       if (!userCredential.user!.emailVerified) {
         await _auth.signOut();
         _showSnackBar(
@@ -100,44 +90,43 @@ class _PageLoginState extends State<PageLogin> {
         return;
       }
 
-      // Cargar datos de usuario desde Firestore
       final DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(userCredential.user?.uid)
           .get();
 
       if (!doc.exists) {
-        _showSnackBar('Usuario no encontrado en la base de datos.');
+        // Redirigir a la página para completar registro
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PageCompletarRegistro(),
+          ),
+        );
         return;
       }
 
-      // Asumiendo que tienes una clase Usuario con un método fromMap
       final Usuario usuario =
       Usuario.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       bool isAdmin = usuario.tipoUsuario == 'admin';
       print(
           "Usuario: ${usuario.nombre} ${usuario.apellido} (${usuario.correo}) - ${usuario.tipoUsuario}");
 
-      // Guarda los datos en SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('userRole', isAdmin ? 'admin' : 'user');
       final String usuarioJson = json.encode(usuario.toMap());
       await prefs.setString('userData', usuarioJson);
 
-      // Carga los datos del usuario en el estado global
       final authState = Provider.of<AuthState>(context, listen: false);
       authState.setUser(usuario);
 
-      // Verificar si el widget sigue montado antes de navegar
       if (!mounted) return;
 
-      // Navegar a la pantalla correspondiente
       if (isAdmin) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                PageAppGeneralAdmin(), // Asegúrate de que esta sea la página correcta
+            builder: (context) => PageAppGeneralAdmin(),
           ),
               (route) => false,
         );
@@ -151,7 +140,6 @@ class _PageLoginState extends State<PageLogin> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      // Manejo de errores específicos de FirebaseAuth
       String errorMessage;
       switch (e.code) {
         case 'invalid-email':
@@ -177,12 +165,10 @@ class _PageLoginState extends State<PageLogin> {
       _showSnackBar(errorMessage);
       print("Error de FirebaseAuth: $e");
     } catch (e) {
-      // Manejo de otros errores
       _showSnackBar(
           "Ocurrió un error inesperado. Por favor, intenta de nuevo.");
       print("Error inesperado: $e");
     } finally {
-      // Ocultar la pantalla de carga
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -191,11 +177,9 @@ class _PageLoginState extends State<PageLogin> {
     }
   }
 
-  // Método para enviar correo de restablecimiento de contraseña
   Future<void> _resetPassword() async {
     String email = '';
 
-    // Mostrar un diálogo para que el usuario ingrese su correo electrónico
     await showDialog(
       context: context,
       builder: (context) {
@@ -230,13 +214,11 @@ class _PageLoginState extends State<PageLogin> {
     );
 
     if (email.isNotEmpty) {
-      // Mostrar indicador de carga
       setState(() {
         _isLoading = true;
       });
 
       try {
-        // Enviar correo de restablecimiento de contraseña
         await _auth.sendPasswordResetEmail(email: email);
         _showSnackBar(
             'Se ha enviado un correo para restablecer tu contraseña.');
@@ -262,7 +244,6 @@ class _PageLoginState extends State<PageLogin> {
             "Ocurrió un error inesperado. Por favor, intenta de nuevo.");
         print("Error inesperado: $e");
       } finally {
-        // Ocultar indicador de carga
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -293,7 +274,6 @@ class _PageLoginState extends State<PageLogin> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Logo y texto de la pantalla
                   SizedBox(height: 60), // Espacio superior
                   Image.asset(
                     'lib/resources/itver_logo_sf.png',
@@ -389,7 +369,6 @@ class _PageLoginState extends State<PageLogin> {
                   ),
                   SizedBox(height: 20),
                 ],
-
               ),
             ),
           ),

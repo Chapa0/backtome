@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -27,7 +28,6 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
   }
 
   Future<void> _loadLostObjects() async {
-
     final authState = Provider.of<AuthState>(context, listen: false);
     final Usuario? currentUser = authState.user;
     if (_isLoading || !_hasMore) return;
@@ -60,6 +60,54 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
 
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+  }
+
+  void _confirmDeleteObject(LostObject lostObject) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Eliminar objeto'),
+        content: Text('¿Estás seguro de que deseas eliminar este objeto?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(), // Cerrar el diálogo
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Cerrar el diálogo
+              _deleteLostObject(lostObject);
+            },
+            child: Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteLostObject(LostObject lostObject) async {
+    try {
+      // Eliminar el documento de Firestore
+      await _firestore.collection('objetos_perdidos').doc(lostObject.id).delete();
+
+      // Eliminar la imagen de Firebase Storage
+      await FirebaseStorage.instance.refFromURL(lostObject.imagenUrl).delete();
+
+      // Remover el objeto de la lista local
+      setState(() {
+        _lostObjects.remove(lostObject);
+      });
+
+      // Mostrar un SnackBar confirmando la eliminación
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido eliminado.')),
+      );
+    } catch (e) {
+      // Mostrar un mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al eliminar el objeto: $e')),
+      );
+    }
   }
 
   @override
@@ -140,6 +188,20 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
                           ),
                         ),
                       ),
+                    // Icono de papelera para eliminar
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          _confirmDeleteObject(lostObject);
+                        },
+                        child: Icon(
+                          Icons.delete,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 Padding(

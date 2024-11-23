@@ -493,12 +493,29 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                 )
               else if (isOwner)
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Eres el usuario que encontró este objeto.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                  ),
-                )
+  padding: const EdgeInsets.all(16.0),
+  child: Column(
+    children: [
+      Text(
+        'Eres el usuario que encontró este objeto.',
+        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+      ),
+      SizedBox(height: 16),
+      ElevatedButton(
+        onPressed: () {
+          _deleteLostObject(widget.lostObject);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+        ),
+        child: Text(
+          'Eliminar objeto',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+    ],
+  ),
+)
               else if (_hasUserClaimed())
                   Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -582,6 +599,33 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
       ),
     );
   }
+
+  void _deleteLostObject(LostObject lostObject) async {
+    try {
+      // Eliminar el documento de Firestore
+      await FirebaseFirestore.instance.collection('objetos_perdidos').doc(lostObject.id).delete();
+
+      // Eliminar la imagen de Firebase Storage
+      for (String url in lostObject.imageUrls!) {
+        await FirebaseStorage.instance.refFromURL(url).delete();
+      }
+
+
+      // Mostrar un SnackBar confirmando la eliminación
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido eliminado.')),
+      );
+
+      // Regresar a la página anterior
+      Navigator.of(context).pop();
+    } catch (e) {
+      // Mostrar un mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al eliminar el objeto: $e')),
+      );
+    }
+  }
+
 
 
   Future<void> _showLoadingDialog() async {

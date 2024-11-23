@@ -35,6 +35,8 @@ dependencies:
   table_calendar: ^3.0.9
   http: ^0.13.3
   dio: ^5.4.0
+  cloud_functions: ^4.6.8
+  firebase_app_check: ^0.2.1+17
 
 
 

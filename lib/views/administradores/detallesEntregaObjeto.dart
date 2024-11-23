@@ -349,7 +349,7 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
           IconButton(
             icon: Stack(
               children: [
-                Icon(Icons.people),
+                Icon(Icons.people, color: Colors.white),
                 Positioned(
                   right: 0,
                   child: CircleAvatar(

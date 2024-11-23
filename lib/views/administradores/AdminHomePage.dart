@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_backtome/views/administradores/userLIstPage.dart';
 import 'package:flutter_backtome/views/usuarios/registrarObjetoPerdido.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -16,7 +18,6 @@ import '../usuarios/ObjetoDetalles.dart';
 import '../usuarios/UserAccountPage.dart';
 import '../usuarios/listaObjetosAgregados.dart';
 import 'detallesEntregaObjeto.dart';
-
 
 class PageAppGeneralAdmin extends StatefulWidget {
   @override
@@ -60,6 +61,11 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
 
   StreamSubscription<QuerySnapshot>? _lostObjectsSubscription;
 
+  Map<String, List<dynamic>> _events = {};
+  int _totalPublishedObjects = 0;
+
+
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +90,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
         _setupLostObjectsListener();
       }
     });
+    _loadAllLostObjectsForCalendar();
   }
 
   @override
@@ -113,7 +120,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
 
   // Función para formatear la fecha como "día mes" (ejemplo: 15 Septiembre)
   String _formatDate(DateTime date) {
-    // que muestr el dia y el mes abrebiado
+    // que muestre el dia y el mes abreviado
     final DateFormat formatter = DateFormat('d MMM');
     return formatter.format(date);
   }
@@ -515,16 +522,13 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
       // BottomAppBar con elementos interactivos
       bottomNavigationBar: BottomAppBar(
         color: _primaryColor,
-        shape: CircularNotchedRectangle(), // Para el notch del FAB
+        shape: CircularNotchedRectangle(),
         notchMargin: 6.0,
         child: Row(
-          mainAxisSize: MainAxisSize.max,
           children: [
-            // Botón de menú en la izquierda
             IconButton(
               icon: Icon(Icons.menu, color: Colors.white),
               onPressed: () {
-                // Mostrar el cajón que se despliega desde la parte inferior
                 showModalBottomSheet(
                   context: context,
                   builder: (BuildContext context) {
@@ -533,22 +537,26 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
                 );
               },
             ),
-            Spacer(),
-            // Ícono de búsqueda en la derecha
+            Expanded(
+              child: Text(
+                'Objetos publicados: $_totalPublishedObjects',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             IconButton(
               icon: Icon(Icons.search, color: Colors.white),
               onPressed: () {
                 setState(() {
                   _isSearching = !_isSearching;
                   if (_isSearching) {
-                    // Enfocar el campo de búsqueda
                     FocusScope.of(context).requestFocus(_searchFocusNode);
                   } else {
-                    // Limpiar la búsqueda y recargar los objetos
                     _searchQuery = '';
                     _searchController.clear();
                     _setupLostObjectsListener(isRefresh: true);
-                    FocusScope.of(context).unfocus(); // Ocultar el teclado
+                    FocusScope.of(context).unfocus();
                   }
                 });
               },
@@ -671,6 +679,43 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
                       ),
                     ),
                   ),
+                // Icono y texto para aprobación o eliminación
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (lostObject.aprobado == false || lostObject.aprobado == null) {
+                        _showApprovalOrDeleteDialog(lostObject);
+                      } else {
+                        _confirmDeleteObject(lostObject);
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: (lostObject.aprobado ?? false)
+                            ? Colors.red.withOpacity(0.8)
+                            : Colors.blue.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            (lostObject.aprobado ?? false) ? Icons.delete : Icons.check_circle_outline,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            (lostObject.aprobado ?? false) ? 'Eliminar' : 'Aprobar',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
             // Datos del objeto perdido
@@ -736,6 +781,116 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
     );
   }
 
+  void _showApprovalOrDeleteDialog(LostObject lostObject) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Aprobar o Eliminar'),
+        content: Text('¿Deseas aprobar o eliminar este objeto?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteLostObject(lostObject);
+            },
+            child: Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _approveLostObject(lostObject);
+            },
+            child: Text('Aprobar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _approveLostObject(LostObject lostObject) async {
+    try {
+      // Actualizar el campo 'aprobado' en Firestore
+      await FirebaseFirestore.instance
+          .collection('objetos_perdidos')
+          .doc(lostObject.id)
+          .update({'aprobado': true});
+
+      // Mostrar un mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido aprobado.')),
+      );
+
+      // Actualizar el estado localmente
+      setState(() {
+        lostObject.aprobado = true;
+      });
+    } catch (e) {
+      // Mostrar un mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al aprobar el objeto: $e')),
+      );
+    }
+  }
+
+  void _deleteLostObject(LostObject lostObject) async {
+    try {
+      // Eliminar el documento de Firestore
+      await FirebaseFirestore.instance.collection('objetos_perdidos').doc(lostObject.id).delete();
+
+      // Eliminar la imagen del objeto del Storage
+      if (lostObject.imagenUrl.isNotEmpty) {
+        await FirebaseStorage.instance.refFromURL(lostObject.imagenUrl).delete();
+      }
+
+      // Remover el objeto de la lista local
+      setState(() {
+        _lostObjects.remove(lostObject);
+      });
+
+      // Mostrar un SnackBar confirmando la eliminación
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido eliminado.')),
+      );
+    } catch (e) {
+      // Mostrar un mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al eliminar el objeto: $e')),
+      );
+    }
+  }
+
+  void _confirmDeleteObject(LostObject lostObject) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Eliminar objeto'),
+        content: Text('¿Estás seguro de que deseas eliminar este objeto?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(), // Cerrar el diálogo
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Cerrar el diálogo
+              _deleteLostObject(lostObject);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Widget para el indicador de carga al final de la lista
   Widget _buildLoadingIndicator() {
     if (_hasMore) {
@@ -759,6 +914,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
   }
 
   // Widget para el cajón inferior (Bottom Drawer)
+
   Widget _buildBottomDrawer() {
     final authState = Provider.of<AuthState>(context);
     final Usuario? currentUser = authState.user;
@@ -828,11 +984,21 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
             leading: Icon(Icons.assignment_turned_in),
             title: Text('Objetos reclamados'),
             onTap: () {
-              Navigator.pop(context); // Cerrar el cajón
-              // Navegar a la página ClaimedObjectsPage
+              Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => ClaimedObjectsPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.people),
+            title: Text('Usuarios registrados'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => UserListPage()),
               );
             },
           ),
@@ -859,11 +1025,26 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
           startingDayOfWeek: StartingDayOfWeek.monday,
           onDaySelected: _onDaySelected,
           onRangeSelected: _onRangeSelected,
-          rangeSelectionMode: RangeSelectionMode.toggledOn, // Modo de selección de rango activado
+          rangeSelectionMode: RangeSelectionMode.toggledOn,
           rangeStartDay: _rangeStart,
           rangeEndDay: _rangeEnd,
           calendarStyle: CalendarStyle(
             outsideDaysVisible: false,
+          ),
+          eventLoader: (day) {
+            String dateKey = DateFormat('yyyy-MM-dd').format(day);
+            return _events[dateKey] ?? [];
+          },
+          calendarBuilders: CalendarBuilders(
+            markerBuilder: (context, date, events) {
+              if (events.isNotEmpty) {
+                return Positioned(
+                  bottom: 1,
+                  child: _buildEventsMarker(),
+                );
+              }
+              return SizedBox();
+            },
           ),
           onFormatChanged: (format) {
             if (_calendarFormat != format) {
@@ -878,5 +1059,56 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
         ),
       ),
     );
+  }
+
+  Widget _buildEventsMarker() {
+    return Container(
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.red, // Color del marcador
+      ),
+    );
+  }
+
+
+  Future<void> _loadAllLostObjectsForCalendar() async {
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('objetos_perdidos')
+          .get();
+
+      Map<String, List<dynamic>> events = {};
+      int totalObjects = 0;
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final lostObject = LostObject.fromMap(data, doc.id);
+
+        // Incrementar el contador total
+        totalObjects++;
+
+        // Obtener la fecha del objeto en formato 'yyyy-MM-dd'
+        String dateKey = DateFormat('yyyy-MM-dd').format(lostObject.timestamp);
+
+        // Agrupar los objetos por fecha
+        if (events.containsKey(dateKey)) {
+          events[dateKey]!.add(lostObject);
+        } else {
+          events[dateKey] = [lostObject];
+        }
+      }
+
+      setState(() {
+        _events = events;
+        _totalPublishedObjects = totalObjects;
+      });
+    } catch (e) {
+      print("Error al cargar los objetos perdidos: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+      );
+    }
   }
 }

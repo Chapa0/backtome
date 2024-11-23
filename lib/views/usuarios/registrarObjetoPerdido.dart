@@ -274,6 +274,7 @@ class _AddLostObjectPageState extends State<AddLostObjectPage> {
         'lugarEncontrado': _locationFound,
         'estadoReclamacion': 'No reclamado',
         'imagenUrl': imageUrls.first, // URL de la primera imagen
+        'aprobado': currentUser.tipoUsuario == 'admin', // Si el usuario es admin, aprobar automáticamente
         'imageUrls': imageUrls, // Lista de URLs de imágenes
         'nombreEncontrado': currentUser.nombre,
         'uidEncontrado': currentUser.id,
