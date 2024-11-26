@@ -51,6 +51,7 @@ class _UserListPageState extends State<UserListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
         title: Text('Usuarios registrados (${_usuarios.length})', style: TextStyle(color: Colors.white)),
         backgroundColor: _primaryColor,
       ),

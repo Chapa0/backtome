@@ -340,6 +340,7 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
 
     return Scaffold(
       appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
         title: Text(
           "Detalles del objeto",
           style: TextStyle(color: Colors.white),
@@ -588,11 +589,10 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              if (_imageFile == null)
                               ElevatedButton.icon(
                                 icon: Icon(Icons.photo, color: Colors.white),
-                                label: _imageFile != null
-                                    ? Text('Imagen seleccionada', style: TextStyle(color: Colors.white))
-                                    : Text('No se ha seleccionado ninguna imagen', style: TextStyle(color: Colors.white)),
+                                label: Text('Agrega imagen de tu objeto (opcional)', style: TextStyle(color: Colors.white)),
                                 onPressed: _pickImage,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _primaryColor,
@@ -600,6 +600,16 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                               ),
                             ],
                           ),
+                          if (_imageFile != null)
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Image.file(
+                                _imageFile!,
+                                width: 200, // Puedes ajustar el tamaño aquí
+                                height: 200, // Puedes ajustar el tamaño aquí
+                                fit: BoxFit.cover,
+                              ),
+                            ),
                           SizedBox(height: 24),
                           // Button to submit the claim
                           ElevatedButton(

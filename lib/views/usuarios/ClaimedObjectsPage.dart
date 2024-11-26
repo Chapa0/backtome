@@ -79,7 +79,9 @@ class _ClaimedObjectsPageState extends State<ClaimedObjectsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Objetos Reclamados'),
+        // cambiar el color de la flecha de retroceso
+        iconTheme: IconThemeData(color: Colors.white),
+        title: Text('Objetos Reclamados', style: TextStyle(color: Colors.white)),
         backgroundColor: _primaryColor,
       ),
       backgroundColor: Colors.white,

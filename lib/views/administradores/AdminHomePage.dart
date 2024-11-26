@@ -463,8 +463,13 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
                     icon: Icon(Icons.clear),
                     onPressed: () {
                       _searchController.clear();
+                      _isSearching = !_isSearching;
                       setState(() {
                         _searchQuery = '';
+                        _searchController.clear();
+
+                        _setupLostObjectsListener(isRefresh: true);
+                        FocusScope.of(context).unfocus();
                       });
                       _setupLostObjectsListener(isRefresh: true);
                     },
@@ -555,6 +560,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
                   } else {
                     _searchQuery = '';
                     _searchController.clear();
+
                     _setupLostObjectsListener(isRefresh: true);
                     FocusScope.of(context).unfocus();
                   }
@@ -914,7 +920,6 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
   }
 
   // Widget para el cajón inferior (Bottom Drawer)
-
   Widget _buildBottomDrawer() {
     final authState = Provider.of<AuthState>(context);
     final Usuario? currentUser = authState.user;

@@ -126,7 +126,8 @@ class _UserAccountPageState extends State<UserAccountPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Cuenta'),
+        iconTheme: IconThemeData(color: Colors.white),
+        title: Text('Cuenta', style: TextStyle(color: Colors.white)),
         backgroundColor: primaryColor,
       ),
       body: _isLoading

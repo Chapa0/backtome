@@ -310,6 +310,7 @@ class _AddLostObjectPageState extends State<AddLostObjectPage> {
     final Color primaryColor = Color(0xFF1B396A);
     return Scaffold(
       appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
         title: Text('Agregar Objeto Perdido', style: TextStyle(color: Colors.white)),
         backgroundColor: primaryColor,
       ),

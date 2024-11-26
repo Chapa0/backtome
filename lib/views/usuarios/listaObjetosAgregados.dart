@@ -114,8 +114,9 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
         backgroundColor: _primaryColor,
-        title: Text('Objetos Perdidos Agregados'),
+        title: Text('Objetos Perdidos Agregados', style: TextStyle(color: Colors.white)),
       ),
       backgroundColor: Colors.white,
       body: ListView.builder(

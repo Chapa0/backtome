@@ -67,6 +67,7 @@ class UserDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        iconTheme: IconThemeData(color: Colors.white),
         title: Text('Detalle del usuario'),
         backgroundColor: _primaryColor,
       ),

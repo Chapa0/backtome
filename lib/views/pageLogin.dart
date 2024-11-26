@@ -29,6 +29,7 @@ class _PageLoginState extends State<PageLogin> {
   String? _correoError;
   String? _passwordError;
 
+  bool _isPasswordHidden = true;
   bool _isLoading = false;
 
   void _showSnackBar(String message) {
@@ -310,12 +311,22 @@ class _PageLoginState extends State<PageLogin> {
                   // Campo de contraseña
                   TextField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: _isPasswordHidden,
                     decoration: InputDecoration(
                       labelText: "Contraseña",
                       errorText: _passwordError,
                       prefixIcon: Icon(Icons.lock),
                       border: OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordHidden ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordHidden = !_isPasswordHidden;
+                          });
+                        },
+                      ),
                     ),
                     onChanged: (value) {
                       if (_passwordError != null && value.trim().isNotEmpty) {

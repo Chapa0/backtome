@@ -10,7 +10,9 @@ class LostObjectPickupPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lost Objects Pickup'),
+        iconTheme: IconThemeData(color: Colors.white),
+        title: Text('recolección de objetos perdidos',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Color(0xFF1B396A),
       ),
       body: Column(
