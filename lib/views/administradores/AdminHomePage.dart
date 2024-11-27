@@ -63,6 +63,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
 
   Map<String, List<dynamic>> _events = {};
   int _totalPublishedObjects = 0;
+  int _totalLostObjects = 0;
 
 
 
@@ -543,11 +544,30 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
               },
             ),
             Expanded(
-              child: Text(
-                'Objetos publicados: $_totalPublishedObjects',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SizedBox(width: 16), // Espacio a la izquierda para ajustar
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start, // Alineación a la izquierda
+                    children: [
+                      Text(
+                        'publicados: $_totalPublishedObjects',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                        textAlign: TextAlign.start,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'perdidos: $_totalLostObjects',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                        textAlign: TextAlign.start,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             IconButton(
@@ -571,11 +591,13 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
         ),
       ),
       // FAB incrustado en el centro del BottomAppBar
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: CustomFloatingActionButtonLocation(
+        offsetX: -75, // Mueve el FAB 20 píxeles hacia la izquierda
+        offsetY: -50,  // No hay ajuste vertical
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: _primaryColor,
         onPressed: () {
-          // Ir a la pantalla de registro de objetos perdidos AddLostObjectPage
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => AddLostObjectPage()),
@@ -583,6 +605,7 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
         },
         child: Icon(Icons.add, color: Colors.white, size: 32),
       ),
+
     );
   }
 
@@ -1086,18 +1109,23 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
 
       Map<String, List<dynamic>> events = {};
       int totalObjects = 0;
+      int totalLostObjects = 0;
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final lostObject = LostObject.fromMap(data, doc.id);
 
-        // Incrementar el contador total
-        totalObjects++;
 
-        // Obtener la fecha del objeto en formato 'yyyy-MM-dd'
-        String dateKey = DateFormat('yyyy-MM-dd').format(lostObject.timestamp);
+          totalObjects++;
+
+
+        // Contar los objetos perdidos que no han sido reclamados
+        if ((lostObject.uidReclamado == null || lostObject.uidReclamado!.isEmpty)) {
+          totalLostObjects++;
+        }
 
         // Agrupar los objetos por fecha
+        String dateKey = DateFormat('yyyy-MM-dd').format(lostObject.timestamp);
         if (events.containsKey(dateKey)) {
           events[dateKey]!.add(lostObject);
         } else {
@@ -1105,15 +1133,44 @@ class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
         }
       }
 
+      // Actualizar el estado
       setState(() {
         _events = events;
         _totalPublishedObjects = totalObjects;
+        _totalLostObjects = totalLostObjects;
       });
+
+      print("Total objetos publicados: $_totalPublishedObjects");
+      print("Total objetos perdidos: $_totalLostObjects");
     } catch (e) {
       print("Error al cargar los objetos perdidos: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al cargar los objetos perdidos.')),
       );
     }
+  }
+}
+
+
+class CustomFloatingActionButtonLocation extends FloatingActionButtonLocation {
+  final double offsetX;
+  final double offsetY;
+
+  CustomFloatingActionButtonLocation({this.offsetX = 0, this.offsetY = 0});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    // Calcula la posición base del FAB en la esquina derecha
+    final double fabX = scaffoldGeometry.scaffoldSize.width -
+        scaffoldGeometry.floatingActionButtonSize.width -
+        scaffoldGeometry.minInsets.right +
+        offsetX; // Ajuste horizontal
+
+    final double fabY = scaffoldGeometry.scaffoldSize.height -
+        scaffoldGeometry.floatingActionButtonSize.height -
+        scaffoldGeometry.minInsets.bottom +
+        offsetY; // Ajuste vertical
+
+    return Offset(fabX, fabY);
   }
 }

@@ -589,10 +589,9 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              if (_imageFile == null)
                               ElevatedButton.icon(
                                 icon: Icon(Icons.photo, color: Colors.white),
-                                label: Text('Agrega imagen de tu objeto (opcional)', style: TextStyle(color: Colors.white)),
+                                label: Text(_imageFile == null ? 'Agrega imagen de tu objeto (opcional)' : 'Cambiar imagen seleccionada', style: TextStyle(color: Colors.white)),
                                 onPressed: _pickImage,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _primaryColor,
@@ -601,14 +600,43 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                             ],
                           ),
                           if (_imageFile != null)
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Image.file(
-                                _imageFile!,
-                                width: 200, // Puedes ajustar el tamaño aquí
-                                height: 200, // Puedes ajustar el tamaño aquí
-                                fit: BoxFit.cover,
-                              ),
+                            Stack(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Image.file(
+                                    _imageFile!,
+                                    width: 200, // Puedes ajustar el tamaño aquí
+                                    height: 200, // Puedes ajustar el tamaño aquí
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 15,
+                                  right: 15,
+                                  child: Container(
+                                    // ajustar el tamaño del contenedor según sea necesario
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      // tamaño del contenedor
+
+                                      color: Colors.red.withOpacity(0.7), // Fondo rojo con transparencia
+                                      shape: BoxShape.rectangle, // Rectángulo por defecto
+                                      borderRadius: BorderRadius.circular(12), // Esquinas redondeadas
+                                    ),
+                                    padding: const EdgeInsets.all(4.0), // Espaciado interno para el ícono
+                                    child: IconButton(
+                                      icon: Icon(Icons.delete, color: Colors.white, size: 20),
+                                      onPressed: () {
+                                        setState(() {
+                                          _imageFile = null;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           SizedBox(height: 24),
                           // Button to submit the claim
