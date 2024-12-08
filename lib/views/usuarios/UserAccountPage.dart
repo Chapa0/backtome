@@ -9,7 +9,9 @@ import 'dart:io';
 import '../../services/usuarioRegistrado.dart';
 import '../administradorBD/usuariosBD.dart';
 import '../pageLogin.dart'; // Import the login page
-import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../soporte.dart'; // Import FirebaseAuth
 
 class UserAccountPage extends StatefulWidget {
   @override
@@ -25,6 +27,7 @@ class _UserAccountPageState extends State<UserAccountPage> {
   bool _isEditingApellido = false;
   bool _isEditingPassword = false;
   bool _isLoading = false;
+  bool _passwordVisible = false; // Nueva variable para controlar la visibilidad
 
   final ImagePicker _picker = ImagePicker();
 
@@ -127,8 +130,43 @@ class _UserAccountPageState extends State<UserAccountPage> {
     return Scaffold(
       appBar: AppBar(
         iconTheme: IconThemeData(color: Colors.white),
-        title: Text('Cuenta', style: TextStyle(color: Colors.white)),
-        backgroundColor: primaryColor,
+        title: Text(
+          'Cuenta',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: primaryColor, // Define primaryColor según tu esquema de colores
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: GestureDetector(
+              onTap: () {
+                // Navega a la pantalla Soporte
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => Soporte()),
+                );
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Color(0xFF8C8984), // Color oscuro suave
+                  borderRadius: BorderRadius.circular(8.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4.0,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.all(8.0),
+                child: Icon(
+                  Icons.support_agent, // Ícono de soporte
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -292,7 +330,7 @@ class _UserAccountPageState extends State<UserAccountPage> {
                     SizedBox(height: 20),
                     // Contraseña
                     TextFormField(
-                      obscureText: true,
+                      obscureText: !_passwordVisible, // Controla la visibilidad
                       readOnly: !_isEditingPassword, // Usar readOnly
                       decoration: InputDecoration(
                         labelText: 'Contraseña',
@@ -397,6 +435,21 @@ class _UserAccountPageState extends State<UserAccountPage> {
                       onSaved: (value) {
                         _password = value;
                       },
+                    ),
+                    SizedBox(height: 10), // Espacio antes de la Checkbox
+                    // Checkbox para mostrar/ocultar contraseña
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _passwordVisible,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              _passwordVisible = value ?? false;
+                            });
+                          },
+                        ),
+                        Text('Mostrar contraseña'),
+                      ],
                     ),
                     SizedBox(height: 20),
                     // Eliminar el botón de "Cambiar contraseña vía email"

@@ -58,4 +58,4 @@ flutter:
   - ./lib/resources/itver_logo_sf.png
   - ./assets/mario.jpg
   - ./assets/ipone.jpg
-  - assets/
+  - ./lib/resources/
