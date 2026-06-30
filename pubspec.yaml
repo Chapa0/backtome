@@ -26,7 +26,7 @@ dependencies:
   # Dependencias de Firebase
   firebase_core: ^2.15.1   # Firebase en general
   cloud_firestore: ^4.15.6 # Servicio de la base de datos
-  firebase_auth: ^4.10.0  # Servicio de Autenticación
+  firebase_auth: ^4.20.0  # Servicio de Autenticación
   firebase_storage: ^11.6.0 # Servicio de almacenamiento
   image_picker: ^1.1.2 #Selector de Imagenes
   shared_preferences: ^2.5.3
