@@ -63,7 +63,7 @@ class _SoporteState extends State<Soporte> {
               // Logo de la empresa centrado
               Center(
                 child: Image.asset(
-                  'assets/resources/Logo_BackToMe.jpeg',
+                  'lib/resources/Logo_BackToMe.jpeg',
                   height: _logoHeight, // Altura del logo ajustable
                   width: _logoWidth,   // Ancho del logo ajustable
                   fit: BoxFit.contain, // Ajuste para mantener la proporción

@@ -37,12 +37,13 @@
 - [ ] Validar que al volver de detalles a la lista el panel mantiene el tamaño
 - [ ] Validar que los botones de aprobar/rechazar no aparecen tras rechazar una publicacion
 - [ ] `flutter analyze` completo sin warnings ni infos
-- [ ] `flutter test` completo
-- [ ] `flutter build apk --release`
+- [x] `flutter test` completo
+- [x] `flutter build apk --release`
 
 ## Publicacion
 
-- [ ] APK release generado y renombrado como `0.0.2+2.apk`
+- [x] APK release generado y renombrado como `0.0.2+2.apk`
+- [x] Cloud Functions desplegadas en Firebase
 - [ ] Release GitHub `v0.0.2` creado
 - [ ] APK adjunto al release
 
@@ -59,3 +60,11 @@
 - La camara del mapa solo se ajusta en la carga inicial desde
   `_setupAnnotationsAndRender()`. Los cambios de datos (busqueda, filtros,
   aprobar, rechazar) actualizan marcadores sin mover la camara.
+- `flutter test` completo paso con 6 pruebas.
+- `npm test` en `functions/` paso con 6 pruebas.
+- `flutter build apk --release` genero `build/app/outputs/flutter-apk/app-release.apk`.
+- El APK se copio como `build/app/outputs/flutter-apk/0.0.2+2.apk`.
+- `firebase deploy --only functions` desplego correctamente las funciones en
+  `back-to-me-48f22`.
+- `flutter analyze` completo queda pendiente: no reporta errores de dependencias,
+  pero aun devuelve warnings e infos heredados del proyecto.

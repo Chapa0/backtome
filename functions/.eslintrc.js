@@ -12,6 +12,7 @@ module.exports = {
   ],
   rules: {
     "max-len": "off",
+    "linebreak-style": "off",
     "no-restricted-globals": ["error", "name", "length"],
     "prefer-arrow-callback": "error",
     "require-jsdoc": "off",
