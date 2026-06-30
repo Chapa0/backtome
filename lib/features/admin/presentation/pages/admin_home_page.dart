@@ -1,0 +1,1169 @@
+import 'package:flutter_backtome/core/router/app_router.dart';
+import 'package:flutter_backtome/core/di/service_locator.dart';
+import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_backtome/features/admin/presentation/pages/user_list_page.dart';
+import 'package:flutter_backtome/features/lost_objects/presentation/pages/add_lost_object_page.dart';
+import 'package:provider/provider.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart'; // Importar intl para formatear fechas
+
+import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/approve_lost_object_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/delete_lost_object_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_visible_lost_objects_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/reject_lost_object_usecase.dart';
+import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
+import 'package:flutter_backtome/features/claims/presentation/pages/claimed_objects_page.dart';
+import 'package:flutter_backtome/features/users/presentation/pages/user_account_page.dart';
+import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_lost_objects_page.dart';
+import 'package:flutter_backtome/features/admin/presentation/pages/admin_lost_object_delivery_detail_page.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+class PageAppGeneralAdmin extends StatefulWidget {
+  @override
+  _PageAppGeneralAdminState createState() => _PageAppGeneralAdminState();
+}
+
+class _PageAppGeneralAdminState extends State<PageAppGeneralAdmin>
+    with SingleTickerProviderStateMixin {
+  final Color _primaryColor = Color(0xFF1B396A);
+
+  // Lista para almacenar los objetos perdidos
+  List<LostObject> _lostObjects = [];
+
+  // Controlador de desplazamiento para detectar cuándo llegar al final de la lista
+  final ScrollController _scrollController = ScrollController();
+
+  // Variables para manejar la paginación
+  bool _isLoading = false;
+  bool _hasMore = false; // Indica si hay mas objetos por cargar
+
+  // Variables para el filtrado por fecha
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  DateTime? _rangeStart;
+  DateTime? _rangeEnd;
+  CalendarFormat _calendarFormat = CalendarFormat.month; // Formato inicial
+
+  // Controladores para el calendario
+  bool _isCalendarVisible = false; // Controla la visibilidad del calendario
+
+  // AnimationController para el calendario
+  late AnimationController _animationController;
+
+  // Variables para la funcionalidad de búsqueda
+  bool _isSearching = false; // Indica si la barra de búsqueda está visible
+  String _searchQuery = ''; // Consulta de búsqueda actual
+  TextEditingController _searchController =
+      TextEditingController(); // Controlador para el campo de búsqueda
+  FocusNode _searchFocusNode =
+      FocusNode(); // Nodo de enfoque para manejar el teclado
+
+  Map<String, List<dynamic>> _events = {};
+  int _totalPublishedObjects = 0;
+  int _totalLostObjects = 0;
+  String _statusFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicializar el AnimationController
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 300),
+    );
+
+    // Configurar el listener inicialmente
+    _setupLostObjectsListener();
+
+    // Añadir un listener al controlador de desplazamiento
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 200 &&
+          !_isLoading &&
+          _hasMore &&
+          !(_searchQuery.isNotEmpty &&
+              _rangeStart != null &&
+              _rangeEnd != null)) {
+        _setupLostObjectsListener();
+      }
+    });
+    _loadAllLostObjectsForCalendar();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  // Función para verificar si dos fechas son el mismo día, mes y año
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.day == b.day && a.month == b.month && a.year == b.year;
+  }
+
+  // Función para obtener el inicio del día
+  DateTime _getStartOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 0, 0, 0);
+  }
+
+  // Función para obtener el fin del día
+  DateTime _getEndOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 23, 59, 59);
+  }
+
+  // Función para formatear la fecha como "día mes" (ejemplo: 15 Septiembre)
+  String _formatDate(DateTime date) {
+    // que muestre el dia y el mes abreviado
+    final DateFormat formatter = DateFormat('d MMM');
+    return formatter.format(date);
+  }
+
+  // Función para formatear la fecha y hora para mostrar en la lista
+  String _formatDateTime(DateTime date) {
+    final DateFormat formatter = DateFormat('d MMM y, HH:mm');
+    return formatter.format(date);
+  }
+
+  // Función para obtener los objetos perdidos con filtrado por fecha y/o búsqueda
+  Future<void> _setupLostObjectsListener({bool isRefresh = false}) async {
+    try {
+      if (mounted) {
+        setState(() => _isLoading = true);
+      }
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final objects = await locator<FetchVisibleLostObjectsUseCase>()(
+        user: authState.user,
+        searchQuery: _searchQuery,
+        startDate: _rangeStart,
+        endDate: _rangeEnd,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _lostObjects = objects;
+        _hasMore = false;
+        _isLoading = false;
+      });
+    } catch (error) {
+      print("Error al configurar la carga de objetos perdidos: $error");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+      );
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Función para refrescar la lista (pull to refresh)
+  Future<void> _refreshLostObjects() async {
+    await _setupLostObjectsListener(isRefresh: true);
+  }
+
+  void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
+    setState(() {
+      _selectedDay = selectedDay;
+      _focusedDay = focusedDay;
+      _rangeStart = selectedDay; // Asignar la fecha seleccionada sin conversión
+      _rangeEnd =
+          selectedDay; // Asignar la misma fecha para indicar un solo día
+      _isCalendarVisible = false;
+      _animationController.reverse(); // Contraer el calendario
+    });
+    _setupLostObjectsListener(
+        isRefresh: true); // Recargar los objetos con el nuevo filtro
+  }
+
+  // Funciones del calendario
+
+  void _onRangeSelected(DateTime? start, DateTime? end, DateTime focusedDay) {
+    setState(() {
+      _selectedDay = null; // Limpiamos la selección individual
+      _focusedDay = focusedDay;
+
+      if (start != null) {
+        _rangeStart = start; // Asignar la fecha de inicio sin conversión
+      }
+
+      if (end != null) {
+        _rangeEnd = end; // Fin del último día del rango
+        _isCalendarVisible = false;
+        _animationController.reverse(); // Contraer el calendario
+      } else if (start != null) {
+        _rangeEnd = start; // Si no hay fin, usar el inicio
+      }
+    });
+    _setupLostObjectsListener(
+        isRefresh: true); // Recargar los objetos con el nuevo filtro
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Definir los objetos a mostrar según los filtros activos
+    List<LostObject> displayObjects;
+    if (_searchQuery.isNotEmpty && _rangeStart != null && _rangeEnd != null) {
+      // **Caso 3: Filtrado por fecha y búsqueda por objeto**
+      // Filtrar localmente los objetos cargados por búsqueda
+      displayObjects = _lostObjects
+          .where((obj) =>
+              obj.tipoObjeto.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+    } else {
+      // **Caso 0, 1 y 2: Sin filtros combinados**
+      displayObjects = _lostObjects;
+    }
+    displayObjects = _applyStatusFilter(displayObjects);
+
+    return Scaffold(
+      // AppBar en la parte superior
+      appBar: AppBar(
+        title: Text(
+          'Administrar objetos perdidos',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: _primaryColor,
+        // Dentro del AppBar
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isCalendarVisible = !_isCalendarVisible;
+                if (_isCalendarVisible) {
+                  _animationController.forward(); // Expandir el calendario
+                } else {
+                  _animationController.reverse(); // Contraer el calendario
+                }
+              });
+            },
+            icon: Icon(Icons.calendar_month_outlined, color: Colors.white),
+            label: Text(
+              _rangeStart != null && _rangeEnd != null
+                  ? _isSameDate(_rangeStart!, _rangeEnd!)
+                      ? _formatDate(
+                          _rangeStart!) // Si es el mismo día, muestra una fecha
+                      : '${_formatDate(_rangeStart!)} - ${_formatDate(_rangeEnd!)}' // Si es un rango, muestra ambas fechas
+                  : 'Recientes',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+      // Cuerpo de la pantalla
+      body: Column(
+        children: [
+          // Barra de búsqueda
+          if (_isSearching)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                decoration: InputDecoration(
+                  hintText: 'Buscar objetos perdidos...',
+                  prefixIcon: Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      _isSearching = !_isSearching;
+                      setState(() {
+                        _searchQuery = '';
+                        _searchController.clear();
+
+                        _setupLostObjectsListener(isRefresh: true);
+                        FocusScope.of(context).unfocus();
+                      });
+                      _setupLostObjectsListener(isRefresh: true);
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.trim();
+                  });
+                  _setupLostObjectsListener(isRefresh: true);
+                },
+              ),
+            ),
+          // Calendario animado
+          _buildAnimatedCalendar(),
+          _buildAdminStatusFilters(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshLostObjects,
+              child: _isLoading && displayObjects.isEmpty
+                  ? Center(child: CircularProgressIndicator())
+                  : displayObjects.isEmpty
+                      ? Center(
+                          child: Text(
+                            _isSearching && _searchQuery.isNotEmpty
+                                ? 'No hay resultados para "$_searchQuery"'
+                                : 'No hay objetos perdidos.',
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          itemCount: displayObjects.length +
+                              (_hasMore &&
+                                      !(_searchQuery.isNotEmpty &&
+                                          _rangeStart != null &&
+                                          _rangeEnd != null)
+                                  ? 1
+                                  : 0),
+                          itemBuilder: (context, index) {
+                            if (index < displayObjects.length) {
+                              final lostObject = displayObjects[index];
+                              return _buildLostObjectItem(lostObject);
+                            } else {
+                              // Mostrar el indicador de carga o mensaje
+                              return _buildLoadingIndicator();
+                            }
+                          },
+                        ),
+            ),
+          ),
+        ],
+      ),
+      // BottomAppBar con elementos interactivos
+      bottomNavigationBar: BottomAppBar(
+        color: _primaryColor,
+        shape: CircularNotchedRectangle(),
+        notchMargin: 6.0,
+        child: Row(
+          children: [
+            IconButton(
+              icon: Icon(Icons.menu, color: Colors.white),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return _buildBottomDrawer();
+                  },
+                );
+              },
+            ),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SizedBox(width: 16), // Espacio a la izquierda para ajustar
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start, // Alineación a la izquierda
+                    children: [
+                      Text(
+                        'publicados: $_totalPublishedObjects',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                        textAlign: TextAlign.start,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'perdidos: $_totalLostObjects',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                        textAlign: TextAlign.start,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.search, color: Colors.white),
+              onPressed: () {
+                setState(() {
+                  _isSearching = !_isSearching;
+                  if (_isSearching) {
+                    FocusScope.of(context).requestFocus(_searchFocusNode);
+                  } else {
+                    _searchQuery = '';
+                    _searchController.clear();
+
+                    _setupLostObjectsListener(isRefresh: true);
+                    FocusScope.of(context).unfocus();
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+      // FAB incrustado en el centro del BottomAppBar
+      floatingActionButtonLocation: CustomFloatingActionButtonLocation(
+        offsetX: -75, // Mueve el FAB 20 píxeles hacia la izquierda
+        offsetY: -50, // No hay ajuste vertical
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: _primaryColor,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AddLostObjectPage()),
+          );
+        },
+        child: Icon(Icons.add, color: Colors.white, size: 32),
+      ),
+    );
+  }
+
+  List<LostObject> _applyStatusFilter(List<LostObject> objects) {
+    switch (_statusFilter) {
+      case 'pendingApproval':
+        return objects
+            .where(
+                (object) => object.aprobado == false || object.aprobado == null)
+            .where((object) => object.rechazado != true)
+            .toList();
+      case 'rejected':
+        return objects.where((object) => object.rechazado == true).toList();
+      case 'claimed':
+        return objects
+            .where((object) =>
+                object.estadoReclamacion == 'Pendiente' ||
+                object.reclamaciones.isNotEmpty)
+            .toList();
+      case 'delivered':
+        return objects
+            .where((object) => object.estadoReclamacion == 'Entregado')
+            .toList();
+      case 'all':
+      default:
+        return objects;
+    }
+  }
+
+  Widget _buildAdminStatusFilters() {
+    final pendingApprovalCount = _lostObjects
+        .where((object) => object.aprobado == false || object.aprobado == null)
+        .where((object) => object.rechazado != true)
+        .length;
+    final rejectedCount =
+        _lostObjects.where((object) => object.rechazado == true).length;
+    final claimedCount = _lostObjects
+        .where((object) =>
+            object.estadoReclamacion == 'Pendiente' ||
+            object.reclamaciones.isNotEmpty)
+        .length;
+    final deliveredCount = _lostObjects
+        .where((object) => object.estadoReclamacion == 'Entregado')
+        .length;
+
+    return Material(
+      color: Colors.white,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            _buildStatusChip('Todos', 'all', _lostObjects.length),
+            const SizedBox(width: 8),
+            _buildStatusChip(
+              'Pendientes de aprobar',
+              'pendingApproval',
+              pendingApprovalCount,
+            ),
+            const SizedBox(width: 8),
+            _buildStatusChip('Rechazados', 'rejected', rejectedCount),
+            const SizedBox(width: 8),
+            _buildStatusChip('Reclamados', 'claimed', claimedCount),
+            const SizedBox(width: 8),
+            _buildStatusChip('Entregados', 'delivered', deliveredCount),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String label, String value, int count) {
+    final selected = _statusFilter == value;
+    return ChoiceChip(
+      selected: selected,
+      label: Text('$label ($count)'),
+      onSelected: (_) {
+        setState(() {
+          _statusFilter = value;
+        });
+      },
+      selectedColor: _primaryColor,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : _primaryColor,
+        fontWeight: FontWeight.w600,
+      ),
+      side: BorderSide(color: _primaryColor),
+      backgroundColor: Colors.white,
+    );
+  }
+
+  // Widget para construir cada elemento de la lista
+  Widget _buildLostObjectItem(LostObject lostObject) {
+    return GestureDetector(
+      onTap: () {
+        // Navegar a la pantalla de detalles al tocar el card
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                LostObjectDetailPageAdmin(lostObject: lostObject),
+          ),
+        );
+      },
+      child: Card(
+        margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        elevation: 4.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Imagen del objeto perdido
+            // Envolvemos la imagen y el overlay en un Stack
+            Stack(
+              children: [
+                // Imagen del objeto perdido
+                lostObject.imagenUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(12.0)),
+                        child: CachedNetworkImage(
+                          imageUrl: lostObject.imagenUrl,
+                          width: double.infinity,
+                          height: 200, // Altura fija para la imagen
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            width: double.infinity,
+                            height: 200,
+                            color: Colors.grey[300],
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            width: double.infinity,
+                            height: 200,
+                            color: Colors.grey[300],
+                            child:
+                                Icon(Icons.error, color: Colors.red, size: 40),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: Colors.grey[300],
+                        child: Icon(Icons.image_not_supported,
+                            size: 50, color: Colors.grey[700]),
+                      ),
+                // Overlay amarillo si el objeto está en proceso de reclamación
+                if (lostObject.estadoReclamacion == 'Pendiente')
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: Colors.yellow,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12.0),
+                          bottomRight: Radius.circular(8.0),
+                        ),
+                      ),
+                      child: Text(
+                        'En proceso de reclamación',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (lostObject.estadoReclamacion == 'Entregado')
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12.0),
+                          bottomRight: Radius.circular(8.0),
+                        ),
+                      ),
+                      child: Text(
+                        'Entregado',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Icono y texto para aprobación, rechazo o eliminación
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (lostObject.rechazado == true) {
+                        return;
+                      }
+                      if (lostObject.aprobado == false ||
+                          lostObject.aprobado == null) {
+                        _showApprovalOrDeleteDialog(lostObject);
+                      } else {
+                        _confirmDeleteObject(lostObject);
+                      }
+                    },
+                    child: Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: lostObject.rechazado == true
+                            ? Colors.orange.withOpacity(0.8)
+                            : (lostObject.aprobado ?? false)
+                                ? Colors.red.withOpacity(0.8)
+                                : Colors.blue.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            lostObject.rechazado == true
+                                ? Icons.cancel
+                                : (lostObject.aprobado ?? false)
+                                    ? Icons.delete
+                                    : Icons.check_circle_outline,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            lostObject.rechazado == true
+                                ? 'Rechazado'
+                                : (lostObject.aprobado ?? false)
+                                    ? 'Eliminar'
+                                    : 'Aprobar',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Datos del objeto perdido
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lostObject.tipoObjeto,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Descripción: ${lostObject.descripcion}',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Encontrado en: ${lostObject.lugarEncontrado}',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Fecha: ${_formatDateTime(lostObject.timestamp)}',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  // Mostrar el nombre del usuario que encontró el objeto
+                  Text(
+                    'Encontrado por: ${lostObject.nombreEncontrado}',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: 8),
+                  // Mostrar información de reclamaciones
+                  if (lostObject.reclamaciones.isNotEmpty)
+                    Builder(
+                      builder: (context) {
+                        if (lostObject.reclamaciones.length == 1) {
+                          // Mostrar el nombre del único reclamante
+                          return Text(
+                            'Reclamado por: ${lostObject.reclamaciones.first.nombreReclamante}',
+                            style: TextStyle(
+                                fontSize: 16, color: Colors.grey[600]),
+                          );
+                        } else {
+                          // Mostrar el número de reclamantes
+                          return Text(
+                            'Reclamado por: ${lostObject.reclamaciones.length} personas',
+                            style: TextStyle(
+                                fontSize: 16, color: Colors.grey[600]),
+                          );
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showApprovalOrDeleteDialog(LostObject lostObject) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Aprobar, Rechazar o Eliminar'),
+        content: Text('¿Que accion deseas realizar con este objeto?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteLostObject(lostObject);
+            },
+            child: Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _rejectLostObject(lostObject);
+            },
+            child: Text('Rechazar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _approveLostObject(lostObject);
+            },
+            child: Text('Aprobar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _approveLostObject(LostObject lostObject) async {
+    try {
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final currentUser = authState.user;
+      if (currentUser == null) {
+        throw Exception('Debes iniciar sesion.');
+      }
+
+      await locator<ApproveLostObjectUseCase>()(
+        requesterId: currentUser.id,
+        object: lostObject,
+      );
+
+      // Mostrar un mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido aprobado.')),
+      );
+
+      // Actualizar el estado localmente
+      setState(() {
+        lostObject.aprobado = true;
+      });
+    } catch (e) {
+      // Mostrar un mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al aprobar el objeto: $e')),
+      );
+    }
+  }
+
+  void _rejectLostObject(LostObject lostObject) async {
+    try {
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final currentUser = authState.user;
+      if (currentUser == null) {
+        throw Exception('Debes iniciar sesion.');
+      }
+
+      await locator<RejectLostObjectUseCase>()(
+        requesterId: currentUser.id,
+        object: lostObject,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido rechazado.')),
+      );
+
+      setState(() {
+        lostObject.rechazado = true;
+        lostObject.aprobado = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al rechazar el objeto: $e')),
+      );
+    }
+  }
+
+  void _deleteLostObject(LostObject lostObject) async {
+    try {
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final currentUser = authState.user;
+      if (currentUser == null) {
+        throw Exception('Debes iniciar sesion.');
+      }
+
+      await locator<DeleteLostObjectUseCase>()(
+        requesterId: currentUser.id,
+        object: lostObject,
+      );
+
+      // Remover el objeto de la lista local
+      setState(() {
+        _lostObjects.remove(lostObject);
+      });
+
+      // Mostrar un SnackBar confirmando la eliminación
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El objeto ha sido eliminado.')),
+      );
+    } catch (e) {
+      // Mostrar un mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al eliminar el objeto: $e')),
+      );
+    }
+  }
+
+  void _confirmDeleteObject(LostObject lostObject) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Eliminar objeto'),
+        content: Text('¿Estás seguro de que deseas eliminar este objeto?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(), // Cerrar el diálogo
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Cerrar el diálogo
+              _deleteLostObject(lostObject);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget para el indicador de carga al final de la lista
+  Widget _buildLoadingIndicator() {
+    if (_hasMore) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            _searchQuery.isNotEmpty
+                ? 'Ya no hay más objetos perdidos que coincidan con "$_searchQuery".'
+                : 'Ya no hay más objetos perdidos.',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ),
+      );
+    }
+  }
+
+  // Widget para el cajón inferior (Bottom Drawer)
+  Widget _buildBottomDrawer() {
+    final authState = Provider.of<AuthState>(context);
+    final Usuario? currentUser = authState.user;
+
+    return Container(
+      color: Colors.white,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => UserAccountPage()),
+              );
+            },
+            child: Container(
+              color: Colors.grey[200],
+              padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundImage: NetworkImage(
+                        (currentUser?.urlimagen != null &&
+                                currentUser!.urlimagen.isNotEmpty)
+                            ? currentUser!.urlimagen
+                            : 'https://www.gravatar.com/avatar/15'),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          currentUser?.nombre ?? 'Usuario',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          currentUser?.correo ?? ' ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Divider(),
+          ListTile(
+            leading: Icon(Icons.add_box),
+            title: Text('Objetos perdidos agregados'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => LostObjectsPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.assignment_turned_in),
+            title: Text('Objetos reclamados'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ClaimedObjectsPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.people),
+            title: Text('Usuarios registrados'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => UserListPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.settings),
+            title: Text('Ajustes'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, AppRouter.settingsRoute);
+            },
+          ),
+          _buildVersionFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVersionFooter() {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final version = snapshot.hasData
+            ? 'v${snapshot.data!.version}+${snapshot.data!.buildNumber}'
+            : '';
+
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Text(
+              version,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Widget para el calendario animado
+  Widget _buildAnimatedCalendar() {
+    return SizeTransition(
+      sizeFactor: CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+      child: Container(
+        color: Colors.white,
+        child: TableCalendar(
+          firstDay: DateTime.utc(2010, 1, 1),
+          lastDay: DateTime.utc(2030, 12, 31),
+          focusedDay: _focusedDay,
+          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+          calendarFormat: _calendarFormat,
+          startingDayOfWeek: StartingDayOfWeek.monday,
+          onDaySelected: _onDaySelected,
+          onRangeSelected: _onRangeSelected,
+          rangeSelectionMode: RangeSelectionMode.toggledOn,
+          rangeStartDay: _rangeStart,
+          rangeEndDay: _rangeEnd,
+          calendarStyle: CalendarStyle(
+            outsideDaysVisible: false,
+          ),
+          eventLoader: (day) {
+            String dateKey = DateFormat('yyyy-MM-dd').format(day);
+            return _events[dateKey] ?? [];
+          },
+          calendarBuilders: CalendarBuilders(
+            markerBuilder: (context, date, events) {
+              if (events.isNotEmpty) {
+                return Positioned(
+                  bottom: 1,
+                  child: _buildEventsMarker(),
+                );
+              }
+              return SizedBox();
+            },
+          ),
+          onFormatChanged: (format) {
+            if (_calendarFormat != format) {
+              setState(() {
+                _calendarFormat = format;
+              });
+            }
+          },
+          onPageChanged: (focusedDay) {
+            _focusedDay = focusedDay;
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventsMarker() {
+    return Container(
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.red, // Color del marcador
+      ),
+    );
+  }
+
+  Future<void> _loadAllLostObjectsForCalendar() async {
+    try {
+      final authState = Provider.of<AuthState>(context, listen: false);
+      final lostObjects = await locator<FetchVisibleLostObjectsUseCase>()(
+        user: authState.user,
+      );
+
+      Map<String, List<dynamic>> events = {};
+      int totalObjects = 0;
+      int totalLostObjects = 0;
+
+      for (final lostObject in lostObjects) {
+        totalObjects++;
+
+        // Contar los objetos perdidos que no han sido reclamados
+        if ((lostObject.uidReclamado == null ||
+            lostObject.uidReclamado!.isEmpty)) {
+          totalLostObjects++;
+        }
+
+        // Agrupar los objetos por fecha
+        String dateKey = DateFormat('yyyy-MM-dd').format(lostObject.timestamp);
+        if (events.containsKey(dateKey)) {
+          events[dateKey]!.add(lostObject);
+        } else {
+          events[dateKey] = [lostObject];
+        }
+      }
+
+      // Actualizar el estado
+      setState(() {
+        _events = events;
+        _totalPublishedObjects = totalObjects;
+        _totalLostObjects = totalLostObjects;
+      });
+
+      print("Total objetos publicados: $_totalPublishedObjects");
+      print("Total objetos perdidos: $_totalLostObjects");
+    } catch (e) {
+      print("Error al cargar los objetos perdidos: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar los objetos perdidos.')),
+      );
+    }
+  }
+}
+
+class CustomFloatingActionButtonLocation extends FloatingActionButtonLocation {
+  final double offsetX;
+  final double offsetY;
+
+  CustomFloatingActionButtonLocation({this.offsetX = 0, this.offsetY = 0});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    // Calcula la posición base del FAB en la esquina derecha
+    final double fabX = scaffoldGeometry.scaffoldSize.width -
+        scaffoldGeometry.floatingActionButtonSize.width -
+        scaffoldGeometry.minInsets.right +
+        offsetX; // Ajuste horizontal
+
+    final double fabY = scaffoldGeometry.scaffoldSize.height -
+        scaffoldGeometry.floatingActionButtonSize.height -
+        scaffoldGeometry.minInsets.bottom +
+        offsetY; // Ajuste vertical
+
+    return Offset(fabX, fabY);
+  }
+}

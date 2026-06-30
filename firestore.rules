@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+             && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+             && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.tipoUsuario == 'admin';
+    }
+
+    function isBackendRequestCollection(collectionId) {
+      return collectionId in [
+        'solicitudes_registro_usuario',
+        'solicitudes_actualizar_usuario',
+        'solicitudes_eliminar_usuario',
+        'solicitudes_crear_objeto_perdido',
+        'solicitudes_reclamar_objeto',
+        'solicitudes_aprobar_objeto',
+        'solicitudes_rechazar_objeto',
+        'solicitudes_entregar_objeto',
+        'solicitudes_eliminar_objeto'
+      ];
+    }
+
+    function isOwnRequestCreate() {
+      return isSignedIn()
+             && request.resource.data.estado == 'pendiente'
+             && request.resource.data.solicitanteUid == request.auth.uid
+             && request.resource.data.payload is map;
+    }
+
+    function isOwnRequestRead() {
+      return isSignedIn()
+             && resource.data.solicitanteUid == request.auth.uid;
+    }
+
+    match /usuarios/{userId} {
+      allow read: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    match /objetos_perdidos/{documentId} {
+
+      // Cualquiera puede leer objetos aprobados. El dueno, un reclamante
+      // o un admin tambien pueden leer objetos no publicos.
+      allow read: if resource.data.aprobado == true
+                  || (isSignedIn()
+                      && (
+                        resource.data.uidEncontrado == request.auth.uid
+                        || (
+                          resource.data.reclamacionesUids is list
+                          && request.auth.uid in resource.data.reclamacionesUids
+                        )
+                        || isAdmin()
+                      ));
+
+      allow create, update, delete: if false;
+    }
+
+    match /{collectionId}/{documentId} {
+      allow create: if isBackendRequestCollection(collectionId)
+                    && isOwnRequestCreate();
+      allow read: if isBackendRequestCollection(collectionId)
+                  && (isOwnRequestRead() || isAdmin());
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
