@@ -44,8 +44,8 @@
 
 - [x] APK release generado y renombrado como `0.0.2+2.apk`
 - [x] Cloud Functions desplegadas en Firebase
-- [ ] Release GitHub `v0.0.2` creado
-- [ ] APK adjunto al release
+- [x] Release GitHub `v0.0.2` creado
+- [x] APK adjunto al release
 
 ## Notas de validacion
 
@@ -66,5 +66,6 @@
 - El APK se copio como `build/app/outputs/flutter-apk/0.0.2+2.apk`.
 - `firebase deploy --only functions` desplego correctamente las funciones en
   `back-to-me-48f22`.
+- El release GitHub `v0.0.2` se publico con el APK `0.0.2+2.apk`.
 - `flutter analyze` completo queda pendiente: no reporta errores de dependencias,
   pero aun devuelve warnings e infos heredados del proyecto.
