@@ -2,101 +2,63 @@ import 'dart:convert';
 
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_backtome/services/usuarioRegistrado.dart';
-import 'package:flutter_backtome/views/administradorBD/usuariosBD.dart';
-import 'package:flutter_backtome/views/administradores/AdminHomePage.dart';
+import 'package:flutter_backtome/core/di/service_locator.dart';
+import 'package:flutter_backtome/core/firebase/firebase_options.dart';
+import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
+import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_home_page.dart';
+import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'services/firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'views/pageLogin.dart';
-import 'views/usuarios/pageAppGeneral.dart'; // Pantalla principal para usuarios normales
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, // Si usas FlutterFire CLI
+    options: DefaultFirebaseOptions.currentPlatform,
   );
 
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.debug,
     appleProvider: AppleProvider.debug,
-    // Para producción, reemplaza con los proveedores adecuados
-    // webRecaptchaSiteKey: 'tu-sitio-clave-de-recaptcha',
   );
-  // verificar y asegurar que firebase se inicialice una sola vez
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  }
 
+  setupLocator();
 
-  final AuthState authState = AuthState();
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  String? userRole = prefs.getString('userRole'); // "user" o "admin"
-  final String? usuarioJson = prefs.getString('userData');
-  print(usuarioJson);
+  final authState = AuthState();
+  final prefs = await SharedPreferences.getInstance();
+  final usuarioJson = prefs.getString('userData');
   if (usuarioJson != null) {
     final Map<String, dynamic> usuarioMap = json.decode(usuarioJson);
     if (usuarioMap.containsKey('id')) {
-
-      final String id = usuarioMap['id'] as String; // Asegúrate de que 'id' exista y sea un String
-      final usuario1 = Usuario.fromMap(usuarioMap, id);
-
-      authState.setUser(usuario1);
+      final usuario = Usuario.fromMap(usuarioMap, usuarioMap['id'] as String);
+      authState.setUser(usuario);
     }
   }
 
-  runApp(MyApp(authState: authState, userRole: userRole));
-
+  runApp(BackToMeApp(authState: authState));
 }
-class MyApp extends StatelessWidget {
-  final String? userRole;
+
+class BackToMeApp extends StatelessWidget {
   final AuthState authState;
 
-  const MyApp({Key? key, required this.authState, required this.userRole}) : super(key: key);
+  const BackToMeApp({super.key, required this.authState});
 
   @override
   Widget build(BuildContext context) {
-
-    Widget homeScreen = _selectHomeScreen();
-
-    final Color _backgroundAppColor = Color(0xFFE1EDFF);
-    final Color _institutionalColor = Color(0xFF1B396A);
-
     return MultiProvider(
-        providers: [
-    ChangeNotifierProvider<AuthState>(create: (context) => AuthState()),
-    ChangeNotifierProvider<AuthState>(create: (context) => authState),
-    ],
-    child:MaterialApp(
-      title: 'Back To Me',
-      theme: ThemeData(
-        useMaterial3: true,
-        primaryColor: _institutionalColor,
-        scaffoldBackgroundColor: _backgroundAppColor,
+      providers: [
+        ChangeNotifierProvider<AuthState>.value(value: authState),
+      ],
+      child: MaterialApp(
+        title: 'Back To Me',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          primaryColor: const Color(0xFF1B396A),
+          scaffoldBackgroundColor: const Color(0xFFE1EDFF),
+        ),
+        home: PageAppGeneral(),
       ),
-      debugShowCheckedModeBanner: false,
-      home: homeScreen,
-    ),
     );
   }
-
-  Widget _selectHomeScreen() {
-
-      switch (userRole) {
-        case 'admin':
-          return  PageAppGeneralAdmin();
-        case 'user':
-          return PageAppGeneral();
-        default:
-          return PageLogin();
-      }
-
-  }
-
-
 }

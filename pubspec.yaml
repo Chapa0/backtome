@@ -37,6 +37,15 @@ dependencies:
   dio: ^5.4.0
   cloud_functions: ^4.6.8
   firebase_app_check: ^0.2.1+17
+  get_it: ^7.6.0
+  flutter_secure_storage: ^9.0.0
+  mapbox_maps_flutter: ^2.0.0
+  package_info_plus: ^8.0.0
+  connectivity_plus: ^6.0.0
+  open_filex: ^4.3.0
+  permission_handler: ^11.0.0
+  flutter_bloc: ^8.1.0
+  equatable: ^2.0.0
 
 
 

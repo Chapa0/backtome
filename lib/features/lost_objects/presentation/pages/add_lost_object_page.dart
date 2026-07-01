@@ -407,8 +407,8 @@ class _AddLostObjectPageState extends State<AddLostObjectPage> {
       context,
       MaterialPageRoute(
         builder: (context) => MapboxLocationPicker(
-          initialLatitude: _selectedLat,
-          initialLongitude: _selectedLng,
+          initialLatitude: _selectedLat ?? 19.1738,
+          initialLongitude: _selectedLng ?? -96.1342,
         ),
       ),
     );
