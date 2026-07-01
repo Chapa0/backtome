@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.flutter_backtome"
-    compileSdkVersion 34
+    compileSdkVersion 35
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -37,6 +37,3 @@ android {
 flutter {
     source "../.."
 }
-
-// Aplica el plugin de Google Services al final del archivo
-apply plugin: 'com.google.gms.google-services'

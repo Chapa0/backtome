@@ -56,6 +56,4 @@ flutter:
   assets:
   - ./lib/resources/ITVer_Logo.png
   - ./lib/resources/itver_logo_sf.png
-  - ./assets/mario.jpg
-  - ./assets/ipone.jpg
   - ./lib/resources/
