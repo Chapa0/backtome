@@ -10,6 +10,10 @@ import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_backtome/shared/utils/mapbox_config.dart';
+import 'package:flutter_backtome/shared/utils/local_bootstrap_secrets_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +27,14 @@ Future<void> main() async {
   );
 
   setupLocator();
+
+  final token = await LocalBootstrapSecretsService.loadMapboxToken();
+  MapboxConfig.configure(accessToken: token);
+  mb.MapboxOptions.setAccessToken(token);
+
+  await LocalBootstrapSecretsService.seedSecureStorageFromLocalAsset(
+    locator<FlutterSecureStorage>(),
+  );
 
   final authState = AuthState();
   final prefs = await SharedPreferences.getInstance();
