@@ -18,15 +18,14 @@
 ## Publicacion
 
 - [x] APK release generado y renombrado como `0.0.3+3.apk`
-- [ ] Release GitHub `v0.0.3` creado
-- [ ] APK adjunto al release
+- [x] Release GitHub `v0.0.3` creado
+- [x] APK adjunto al release
 
 ## Notas de validacion
 
 - El usuario confirmo la publicacion de `v0.0.3`.
-- El sistema de actualizaciones compara tags semanticos de GitHub; mientras no
-  exista release `v0.0.3`, los usuarios de `0.0.2+2` no recibiran una nueva
-  actualizacion.
+- El sistema de actualizaciones compara tags semanticos de GitHub; al publicar
+  `v0.0.3`, los usuarios de `0.0.2+2` podran recibir la nueva actualizacion.
 - `flutter build apk --debug` genero
   `build/app/outputs/flutter-apk/app-debug.apk`.
 - El APK debug fue inspeccionado con `aapt` y reporto `versionCode='3'` y
@@ -54,3 +53,6 @@
   owner/repo.
 - GitHub Push Protection bloqueo un intento de push porque el asset local tenia
   un token de Mapbox. Se retiro el token del commit y se regenero el APK.
+- Release publicado en GitHub:
+  `https://github.com/Chapa0/backtome/releases/tag/v0.0.3`.
+- Asset adjunto al release: `0.0.3+3.apk`.

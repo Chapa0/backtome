@@ -2,11 +2,14 @@
 
 ## Estado
 
-Release final para publicar.
+Release publicado.
 
 Esta version queda marcada como recuperacion despues del incidente de mezcla de
 codigo ocurrido al hacer pull desde una version anterior. El problema ya fue
 resuelto y la app queda lista para desplegar la version 3.
+
+Release GitHub:
+`https://github.com/Chapa0/backtome/releases/tag/v0.0.3`.
 
 ## Recuperacion del proyecto
 
