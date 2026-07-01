@@ -2,7 +2,7 @@
 
 ## Estado
 
-Version en desarrollo activa para la siguiente actualizacion Android.
+Version cerrada. Queda como referencia historica.
 
 ## Objetivo
 
@@ -19,6 +19,7 @@ mapa y activar la experiencia de administracion dentro del mapa.
 
 ## Notas de alcance
 
-- Esta version corresponde a la siguiente actualizacion de la app.
-- El tag de GitHub esperado al publicar es `v0.0.2`.
-- El APK esperado debe corresponder a `version: 0.0.2+2`.
+- Esta version corresponde a la actualizacion Android publicada como `v0.0.2`.
+- El APK publicado corresponde a `version: 0.0.2+2`.
+- Release publicado en GitHub:
+  `https://github.com/Chapa0/backtome/releases/tag/v0.0.2`.

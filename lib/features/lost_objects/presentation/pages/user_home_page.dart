@@ -22,6 +22,7 @@ import 'package:flutter_backtome/features/users/presentation/pages/user_account_
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_lost_objects_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
 
 class PageAppGeneral extends StatefulWidget {
   @override
@@ -551,7 +552,6 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                   : _buildListPanel(),
             ),
           ),
-
         ],
       ),
 
@@ -572,7 +572,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             ),
             const Spacer(),
             IconButton(
-              icon: const Icon(Icons.calendar_month_outlined, color: Colors.white),
+              icon: const Icon(Icons.calendar_month_outlined,
+                  color: Colors.white),
               onPressed: () {
                 setState(() {
                   _isCalendarVisible = !_isCalendarVisible;
@@ -650,8 +651,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                     _setupLostObjectsListener(isRefresh: true);
                   },
                 ),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -662,8 +663,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               },
             ),
           ),
-        if (_isCalendarVisible && _panelOpen)
-          _buildAnimatedCalendar(),
+        if (_isCalendarVisible && _panelOpen) _buildAnimatedCalendar(),
         if (_panelOpen) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -819,27 +819,35 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             Stack(
               children: [
                 lostObject.imagenUrl.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(12.0)),
-                        child: CachedNetworkImage(
-                          imageUrl: lostObject.imagenUrl,
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
+                    ? GestureDetector(
+                        onTap: () => ImageViewerDialog.showNetwork(
+                          context: context,
+                          url: lostObject.imagenUrl,
+                          title: lostObject.tipoObjeto,
+                          subtitle: lostObject.lugarEncontrado,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12.0)),
+                          child: CachedNetworkImage(
+                            imageUrl: lostObject.imagenUrl,
                             width: double.infinity,
                             height: 200,
-                            color: Colors.grey[300],
-                            child: const Center(
-                                child: CircularProgressIndicator()),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            width: double.infinity,
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.error,
-                                color: Colors.red, size: 40),
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: Colors.grey[300],
+                              child: const Center(
+                                  child: CircularProgressIndicator()),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.error,
+                                  color: Colors.red, size: 40),
+                            ),
                           ),
                         ),
                       )
@@ -1084,22 +1092,30 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           ),
           // Imagen
           if (obj.imagenUrl.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: obj.imagenUrl,
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
+            GestureDetector(
+              onTap: () => ImageViewerDialog.showNetwork(
+                context: context,
+                url: obj.imagenUrl,
+                title: obj.tipoObjeto,
+                subtitle: obj.lugarEncontrado,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: obj.imagenUrl,
+                  width: double.infinity,
                   height: 200,
-                  color: Colors.grey[200],
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  height: 200,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.error, size: 48),
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    height: 200,
+                    color: Colors.grey[200],
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    height: 200,
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.error, size: 48),
+                  ),
                 ),
               ),
             ).paddingAll(16),
@@ -1262,8 +1278,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   Widget _buildApprovalBadge(LostObject obj) {
     if (obj.rechazado == true) {
       return Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
         decoration: BoxDecoration(
           color: Colors.red.shade400,
           borderRadius: BorderRadius.circular(8.0),
@@ -1285,8 +1300,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
     if (obj.aprobado == true) {
       return Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
         decoration: BoxDecoration(
           color: Colors.green.shade600,
           borderRadius: BorderRadius.circular(8.0),
@@ -1307,8 +1321,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     }
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       decoration: BoxDecoration(
         color: Colors.orange.shade600,
         borderRadius: BorderRadius.circular(8.0),
@@ -1359,8 +1372,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             children: [
               Icon(Icons.info_outline, color: Colors.grey),
               SizedBox(width: 8),
-              Text('Sin reclamaciones',
-                  style: TextStyle(color: Colors.grey)),
+              Text('Sin reclamaciones', style: TextStyle(color: Colors.grey)),
             ],
           ),
         ),
@@ -1435,12 +1447,21 @@ class _PageAppGeneralState extends State<PageAppGeneral>
               if (reclamacion.imagenReclamacionUrl != null &&
                   reclamacion.imagenReclamacionUrl!.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    reclamacion.imagenReclamacionUrl!,
-                    height: 200,
-                    fit: BoxFit.cover,
+                GestureDetector(
+                  onTap: () => ImageViewerDialog.showNetwork(
+                    context: context,
+                    url: reclamacion.imagenReclamacionUrl!,
+                    title: 'Evidencia de reclamacion',
+                    subtitle:
+                        '${reclamacion.nombreReclamante} ${reclamacion.apellidoReclamante}',
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      reclamacion.imagenReclamacionUrl!,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ],
@@ -1462,8 +1483,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar entrega'),
-        content: Text(
-            '¿Entregar el objeto a ${reclamacion.nombreReclamante}?'),
+        content: Text('¿Entregar el objeto a ${reclamacion.nombreReclamante}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -1499,8 +1519,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       _renderMarkers();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                'Objeto entregado a ${reclamacion.nombreReclamante}')),
+            content:
+                Text('Objeto entregado a ${reclamacion.nombreReclamante}')),
       );
     } catch (e) {
       if (!mounted) return;

@@ -23,8 +23,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_map_page.dart';
-import 'package:flutter_backtome/features/lost_objects/presentation/pages/fullscreen_image_detail_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
+import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
 
 class LostObjectDetailPageAdmin extends StatefulWidget {
   final LostObject lostObject;
@@ -46,7 +46,6 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
   List<String> imagenesUrls = []; // Inicializa con las URLs de las imágenes
   bool _isSubmitting = false;
   List<File> _selectedImages = []; // Lista de archivos locales
-  List<File> _selectedImage = []; // Lista de archivos locales
 
   // Variables para mensajes de advertencia
   final List<String> _warningMessages = [
@@ -257,14 +256,11 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
         children: [
           GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FullScreenImageViewer(
-                    images: _selectedImages,
-                    initialIndex: i,
-                  ),
-                ),
+              ImageViewerDialog.show(
+                context: context,
+                imageFile: file,
+                title: widget.lostObject.tipoObjeto,
+                subtitle: widget.lostObject.lugarEncontrado,
               );
             },
             child: ClipRRect(
@@ -858,13 +854,12 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
                     reclamacion.imagenReclamacionUrl!.isNotEmpty)
                   GestureDetector(
                     onTap: () {
-                      // Abrir imagen en pantalla completa
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FullScreenImageViewer(
-                              images: _selectedImage, initialIndex: 0),
-                        ),
+                      ImageViewerDialog.showNetwork(
+                        context: context,
+                        url: reclamacion.imagenReclamacionUrl!,
+                        title: 'Evidencia de reclamacion',
+                        subtitle:
+                            '${reclamacion.nombreReclamante} ${reclamacion.apellidoReclamante}',
                       );
                     },
                     child: Image.network(
@@ -885,18 +880,6 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
         );
       },
     );
-  }
-
-  Future<void> _loadImage(String imageUrl) async {
-    try {
-      File imageFile = await _urlToFile(imageUrl);
-      setState(() {
-        _selectedImage = [imageFile];
-      });
-    } catch (e) {
-      print("Error al cargar la imagen: $e");
-      // Opcionalmente, maneja el error, por ejemplo, mostrando un mensaje al usuario
-    }
   }
 
   String _formatDateTime(DateTime? dateTime) {

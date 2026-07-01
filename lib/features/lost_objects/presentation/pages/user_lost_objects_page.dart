@@ -8,6 +8,7 @@ import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_obje
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/delete_lost_object_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_user_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
+import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
 
 class LostObjectsPage extends StatefulWidget {
   @override
@@ -140,27 +141,35 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
                 Stack(
                   children: [
                     lostObject.imagenUrl.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(12.0)),
-                            child: CachedNetworkImage(
-                              imageUrl: lostObject.imagenUrl,
-                              width: double.infinity,
-                              height: 200,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(
+                        ? GestureDetector(
+                            onTap: () => ImageViewerDialog.showNetwork(
+                              context: context,
+                              url: lostObject.imagenUrl,
+                              title: lostObject.tipoObjeto,
+                              subtitle: lostObject.lugarEncontrado,
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(12.0)),
+                              child: CachedNetworkImage(
+                                imageUrl: lostObject.imagenUrl,
                                 width: double.infinity,
                                 height: 200,
-                                color: Colors.grey[300],
-                                child:
-                                    Center(child: CircularProgressIndicator()),
-                              ),
-                              errorWidget: (context, url, error) => Container(
-                                width: double.infinity,
-                                height: 200,
-                                color: Colors.grey[300],
-                                child: Icon(Icons.error,
-                                    color: Colors.red, size: 40),
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  color: Colors.grey[300],
+                                  child: Center(
+                                      child: CircularProgressIndicator()),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  color: Colors.grey[300],
+                                  child: Icon(Icons.error,
+                                      color: Colors.red, size: 40),
+                                ),
                               ),
                             ),
                           )

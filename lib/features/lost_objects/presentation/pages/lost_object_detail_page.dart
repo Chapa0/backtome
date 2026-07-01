@@ -21,8 +21,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_map_page.dart';
-import 'package:flutter_backtome/features/lost_objects/presentation/pages/fullscreen_image_detail_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
+import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
 
 class LostObjectDetailPage extends StatefulWidget {
   final LostObject lostObject;
@@ -253,14 +253,11 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
         children: [
           GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FullScreenImageViewer(
-                    images: _selectedImages,
-                    initialIndex: i,
-                  ),
-                ),
+              ImageViewerDialog.show(
+                context: context,
+                imageFile: file,
+                title: widget.lostObject.tipoObjeto,
+                subtitle: widget.lostObject.lugarEncontrado,
               );
             },
             child: ClipRRect(

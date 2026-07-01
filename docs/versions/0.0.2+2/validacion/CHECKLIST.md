@@ -42,9 +42,9 @@
 
 ## Publicacion
 
-- [ ] APK release generado y renombrado como `0.0.2+2.apk`
-- [ ] Release GitHub `v0.0.2` creado
-- [ ] APK adjunto al release
+- [x] APK release generado y renombrado como `0.0.2+2.apk`
+- [x] Release GitHub `v0.0.2` creado
+- [x] APK adjunto al release
 
 ## Notas de validacion
 
@@ -59,3 +59,6 @@
 - La camara del mapa solo se ajusta en la carga inicial desde
   `_setupAnnotationsAndRender()`. Los cambios de datos (busqueda, filtros,
   aprobar, rechazar) actualizan marcadores sin mover la camara.
+- Release publicado en GitHub:
+  `https://github.com/Chapa0/backtome/releases/tag/v0.0.2`.
+- Asset adjunto al release: `0.0.2+2.apk`.

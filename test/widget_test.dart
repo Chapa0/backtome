@@ -1,31 +1,37 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
-import 'package:flutter_backtome/main.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
+import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(BackToMeApp(authState: AuthState()));
+  test('AuthState stores, updates and clears the current user', () {
+    final authState = AuthState();
+    final user = Usuario(
+      id: 'u-1',
+      nombre: 'Mario',
+      apellido: 'Chapa',
+      correo: 'mario@example.com',
+      urlimagen: '',
+      tipoUsuario: 'usuario',
+    );
+    final updatedUser = Usuario(
+      id: 'u-1',
+      nombre: 'Mario',
+      apellido: 'Actualizado',
+      correo: 'mario@example.com',
+      urlimagen: 'https://example.com/avatar.png',
+      tipoUsuario: 'admin',
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(authState.user, isNull);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    authState.setUser(user);
+    expect(authState.user, same(user));
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    authState.updateUser(updatedUser);
+    expect(authState.user, same(updatedUser));
+    expect(authState.user?.tipoUsuario, 'admin');
+
+    authState.logout();
+    expect(authState.user, isNull);
   });
 }
