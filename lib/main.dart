@@ -4,6 +4,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter_backtome/core/firebase/firebase_options.dart';
+import 'package:flutter_backtome/core/router/app_router.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_home_page.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
@@ -26,7 +27,7 @@ Future<void> main() async {
     appleProvider: AppleProvider.debug,
   );
 
-  setupLocator();
+  await setupLocator();
 
   final token = await LocalBootstrapSecretsService.loadMapboxToken();
   MapboxConfig.configure(accessToken: token);
@@ -64,6 +65,7 @@ class BackToMeApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Back To Me',
         debugShowCheckedModeBanner: false,
+        onGenerateRoute: AppRouter.onGenerateRoute,
         theme: ThemeData(
           useMaterial3: true,
           primaryColor: const Color(0xFF1B396A),
