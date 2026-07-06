@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/features/app_updates/data/services/app_update_service.dart';
+import 'package:flutter_backtome/features/app_updates/presentation/widgets/release_notes_view.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -76,7 +77,7 @@ class SettingsPage extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Text(release.releaseNotes),
+            ReleaseNotesView(notes: release.releaseNotes),
           ],
           const SizedBox(height: 24),
           Wrap(

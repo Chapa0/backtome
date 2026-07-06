@@ -75,6 +75,26 @@ class AppUpdateSnapshot {
             0;
   }
 
+  bool get canInstall => hasDownloadedApk && hasVisibleUpdate;
+
+  bool get canDownload {
+    return hasVisibleUpdate &&
+        status != AppUpdateStatus.downloading &&
+        status != AppUpdateStatus.installing &&
+        !canInstall;
+  }
+
+  bool get shouldShowDialog {
+    if (canInstall) {
+      return true;
+    }
+    return hasVisibleUpdate &&
+        (status == AppUpdateStatus.available ||
+            status == AppUpdateStatus.downloading ||
+            status == AppUpdateStatus.downloaded ||
+            status == AppUpdateStatus.failed);
+  }
+
   String get installedVersion {
     final info = packageInfo;
     if (info == null) {
@@ -121,6 +141,7 @@ class AppUpdateService extends ChangeNotifier {
   bool _initialized = false;
   bool _isChecking = false;
   bool _isDownloading = false;
+  Timer? _periodicTimer;
 
   AppUpdateService({
     required FlutterSecureStorage secureStorage,
@@ -167,6 +188,9 @@ class AppUpdateService extends ChangeNotifier {
   }
 
   Future<void> checkForUpdates({bool autoDownloadOnWifi = false}) async {
+    if (!_initialized) {
+      await initialize();
+    }
     if (_isChecking) {
       return;
     }
@@ -259,6 +283,9 @@ class AppUpdateService extends ChangeNotifier {
   }
 
   Future<void> downloadLatestRelease({bool manual = true}) async {
+    if (!_initialized) {
+      await initialize();
+    }
     if (_isDownloading) {
       return;
     }
@@ -349,6 +376,9 @@ class AppUpdateService extends ChangeNotifier {
   }
 
   Future<void> installDownloadedApk() async {
+    if (!_initialized) {
+      await initialize();
+    }
     final path = _snapshot.downloadedApkPath;
     if (path == null || path.isEmpty || !await File(path).exists()) {
       await _fail('El APK descargado no existe o fue eliminado.');
@@ -408,6 +438,31 @@ class AppUpdateService extends ChangeNotifier {
     await _persistStatus(_snapshot.status);
     await _log('APP_UPDATE APK local limpiado');
     notifyListeners();
+  }
+
+  void startPeriodicChecks({
+    Duration interval = const Duration(minutes: 5),
+  }) {
+    _periodicTimer?.cancel();
+    _periodicTimer = Timer.periodic(interval, (_) {
+      unawaited(_periodicCheck());
+    });
+  }
+
+  void stopPeriodicChecks() {
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
+  }
+
+  Future<void> _periodicCheck() async {
+    if (_isChecking ||
+        _isDownloading ||
+        _snapshot.status == AppUpdateStatus.downloading ||
+        _snapshot.status == AppUpdateStatus.installing) {
+      return;
+    }
+
+    await checkForUpdates(autoDownloadOnWifi: true);
   }
 
   Future<AppUpdateRelease?> _fetchLatestValidRelease({
@@ -697,6 +752,13 @@ class AppUpdateService extends ChangeNotifier {
       return null;
     }
     return DateTime.tryParse(value);
+  }
+
+  @override
+  void dispose() {
+    stopPeriodicChecks();
+    _httpClient.close();
+    super.dispose();
   }
 }
 

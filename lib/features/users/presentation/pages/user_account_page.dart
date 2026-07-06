@@ -2,10 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter_backtome/features/auth/domain/usecases/send_password_reset_usecase.dart';
+import 'package:flutter_backtome/features/auth/domain/usecases/sign_out_usecase.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:flutter_backtome/features/users/domain/usecases/update_user_usecase.dart';
@@ -126,8 +126,8 @@ class _UserAccountPageState extends State<UserAccountPage> {
     final String userEmail = currentUser?.correo ?? 'correo@ejemplo.com';
     final String userPhotoUrl =
         (currentUser?.urlimagen != null && currentUser!.urlimagen.isNotEmpty)
-            ? currentUser!.urlimagen
-            : 'https://via.placeholder.com/150';
+            ? currentUser.urlimagen
+            : '';
 
     final Color primaryColor = Color(0xFF1B396A);
 
@@ -185,7 +185,17 @@ class _UserAccountPageState extends State<UserAccountPage> {
                       children: [
                         CircleAvatar(
                           radius: 60,
-                          backgroundImage: NetworkImage(userPhotoUrl),
+                          backgroundColor: primaryColor.withOpacity(0.12),
+                          backgroundImage: userPhotoUrl.isNotEmpty
+                              ? NetworkImage(userPhotoUrl)
+                              : null,
+                          child: userPhotoUrl.isEmpty
+                              ? Icon(
+                                  Icons.person,
+                                  size: 64,
+                                  color: primaryColor,
+                                )
+                              : null,
                         ),
                         Positioned(
                           bottom: 0,
@@ -409,13 +419,12 @@ class _UserAccountPageState extends State<UserAccountPage> {
                     SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        await locator<SignOutUseCase>()();
                         authState.logout();
-                        SharedPreferences prefs =
-                            await SharedPreferences.getInstance();
-                        prefs.remove('userRole');
 
-                        Navigator.pushAndRemoveUntil(
-                          context,
+                        if (!mounted) return;
+                        navigator.pushAndRemoveUntil(
                           MaterialPageRoute(builder: (context) => PageLogin()),
                           (Route<dynamic> route) => false,
                         );

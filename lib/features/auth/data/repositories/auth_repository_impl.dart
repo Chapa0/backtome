@@ -66,7 +66,9 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> signOut() {
-    return _dataSource.signOut();
+  Future<void> signOut() async {
+    await _dataSource.signOut();
+    await _preferences.remove('userRole');
+    await _preferences.remove('userData');
   }
 }

@@ -1,15 +1,15 @@
-import 'dart:convert';
-
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter_backtome/core/firebase/firebase_options.dart';
 import 'package:flutter_backtome/core/router/app_router.dart';
+import 'package:flutter_backtome/features/app_updates/data/services/app_update_service.dart';
+import 'package:flutter_backtome/features/app_updates/presentation/widgets/app_update_gate.dart';
+import 'package:flutter_backtome/features/auth/data/services/session_service.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_home_page.dart';
-import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_backtome/shared/utils/mapbox_config.dart';
 import 'package:flutter_backtome/shared/utils/local_bootstrap_secrets_service.dart';
@@ -22,10 +22,12 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.debug,
-    appleProvider: AppleProvider.debug,
-  );
+  if (kDebugMode) {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: const AndroidDebugProvider(),
+      providerApple: const AppleDebugProvider(),
+    );
+  }
 
   await setupLocator();
 
@@ -36,31 +38,42 @@ Future<void> main() async {
   await LocalBootstrapSecretsService.seedSecureStorageFromLocalAsset(
     locator<FlutterSecureStorage>(),
   );
+  final appUpdateService = locator<AppUpdateService>();
+  await appUpdateService.initialize();
 
   final authState = AuthState();
-  final prefs = await SharedPreferences.getInstance();
-  final usuarioJson = prefs.getString('userData');
-  if (usuarioJson != null) {
-    final Map<String, dynamic> usuarioMap = json.decode(usuarioJson);
-    if (usuarioMap.containsKey('id')) {
-      final usuario = Usuario.fromMap(usuarioMap, usuarioMap['id'] as String);
-      authState.setUser(usuario);
-    }
+  final restoredSession = await locator<SessionService>().restoreSession();
+  final restoredUser = restoredSession.user;
+  if (restoredUser != null) {
+    authState.setUser(restoredUser);
   }
 
-  runApp(BackToMeApp(authState: authState));
+  runApp(
+    BackToMeApp(
+      authState: authState,
+      appUpdateService: appUpdateService,
+    ),
+  );
 }
 
 class BackToMeApp extends StatelessWidget {
   final AuthState authState;
+  final AppUpdateService appUpdateService;
 
-  const BackToMeApp({super.key, required this.authState});
+  const BackToMeApp({
+    super.key,
+    required this.authState,
+    required this.appUpdateService,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthState>.value(value: authState),
+        ChangeNotifierProvider<AppUpdateService>.value(
+          value: appUpdateService,
+        ),
       ],
       child: MaterialApp(
         title: 'Back To Me',
@@ -71,7 +84,9 @@ class BackToMeApp extends StatelessWidget {
           primaryColor: const Color(0xFF1B396A),
           scaffoldBackgroundColor: const Color(0xFFE1EDFF),
         ),
-        home: PageAppGeneral(),
+        home: AppUpdateGate(
+          child: PageAppGeneral(),
+        ),
       ),
     );
   }

@@ -63,6 +63,7 @@ class SessionService {
         );
       } catch (error) {
         print('Error al restaurar usuario desde Firestore: $error');
+        return const RestoredSession(user: null, userRole: null);
       }
     }
 

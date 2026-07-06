@@ -66,9 +66,19 @@ class LostObjectsFirestoreDataSource {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    final objects = isAdmin
-        ? await fetchLostObjects()
-        : await _fetchObjectsVisibleToUser(userId);
+    late List<LostObject> objects;
+    if (isAdmin) {
+      try {
+        objects = await fetchLostObjects();
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied') {
+          rethrow;
+        }
+        objects = await _fetchObjectsVisibleToUser(userId);
+      }
+    } else {
+      objects = await _fetchObjectsVisibleToUser(userId);
+    }
 
     final normalizedSearch = searchQuery.trim().toLowerCase();
     final filtered = objects.where((object) {

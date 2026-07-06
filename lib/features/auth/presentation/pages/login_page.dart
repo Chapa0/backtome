@@ -241,7 +241,7 @@ class _PageLoginState extends State<PageLogin> {
                 children: [
                   SizedBox(height: 60), // Espacio superior
                   Image.asset(
-                    'assets/resources/itver_logo_sf.png',
+                    'lib/resources/itver_logo_sf.png',
                     height: 100,
                   ),
                   SizedBox(height: 20),

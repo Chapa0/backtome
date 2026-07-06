@@ -10,10 +10,16 @@ Preparar la siguiente actualizacion despues del cierre de `0.0.3+3`.
 
 ## Areas de cambio
 
-Todavia no hay areas registradas para esta version.
+- `arranque_rutas`: corrige inicializacion de dependencias, rutas nombradas y
+  Provider de actualizaciones.
+- `firestore_rules`: deja configurado el despliegue de reglas de Firestore desde
+  el repositorio.
+- `sistema_actualizaciones`: migra el flujo de actualizaciones al modelo usado
+  en `almeet`, con dialogos globales, descarga e instalacion guiada.
 
 ## Notas de alcance
 
-- Esta version queda abierta solo como base documental inicial.
-- No se debe crear el release `v0.0.4` hasta que el usuario confirme la
-  publicacion.
+- Esta version publica la recuperacion tecnica posterior a `0.0.3+3` y deja el
+  sistema de actualizaciones listo para entregar nuevas APK desde GitHub
+  Releases.
+- El usuario confirmo la publicacion de `0.0.4+4`.

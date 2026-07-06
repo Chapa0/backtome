@@ -468,13 +468,16 @@ class _UserAccountPageState extends State<UserAccountPage> {
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () async {
+                  final navigator = Navigator.of(context);
+                  await FirebaseAuth.instance.signOut();
                   authState.logout();
                   SharedPreferences prefs =
                   await SharedPreferences.getInstance();
                   prefs.remove('userRole');
+                  prefs.remove('userData');
 
-                  Navigator.pushAndRemoveUntil(
-                    context,
+                  if (!mounted) return;
+                  navigator.pushAndRemoveUntil(
                     MaterialPageRoute(builder: (context) => PageLogin()),
                         (Route<dynamic> route) => false,
                   );
