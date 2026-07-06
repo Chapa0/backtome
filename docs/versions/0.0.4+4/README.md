@@ -2,7 +2,7 @@
 
 ## Estado
 
-Version en desarrollo activa para la siguiente actualizacion Android.
+Version cerrada. Queda como referencia historica.
 
 ## Objetivo
 
@@ -23,3 +23,7 @@ Preparar la siguiente actualizacion despues del cierre de `0.0.3+3`.
   sistema de actualizaciones listo para entregar nuevas APK desde GitHub
   Releases.
 - El usuario confirmo la publicacion de `0.0.4+4`.
+- El tag de GitHub publicado es `v0.0.4`.
+- El APK publicado corresponde a `version: 0.0.4+4`.
+- Release publicado en GitHub:
+  `https://github.com/Chapa0/backtome/releases/tag/v0.0.4`.

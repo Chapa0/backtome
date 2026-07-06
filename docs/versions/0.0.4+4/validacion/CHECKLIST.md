@@ -17,8 +17,8 @@
 ## Publicacion
 
 - [x] APK release generado y renombrado
-- [ ] Release GitHub creado
-- [ ] APK adjunto al release
+- [x] Release GitHub creado
+- [x] APK adjunto al release
 
 ## Notas de validacion
 
@@ -38,3 +38,6 @@
   runtime, pero ese archivo local no debe subirse al repositorio.
 - `firebase deploy --only firestore:rules --project back-to-me-48f22` fue
   ejecutado el 2026-07-06 y publico las reglas correctamente.
+- Release publicado en GitHub:
+  `https://github.com/Chapa0/backtome/releases/tag/v0.0.4`.
+- Asset adjunto al release: `0.0.4+4.apk`.
