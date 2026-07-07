@@ -7,6 +7,7 @@ import 'package:flutter_backtome/core/router/app_router.dart';
 import 'package:flutter_backtome/features/app_updates/data/services/app_update_service.dart';
 import 'package:flutter_backtome/features/app_updates/presentation/widgets/app_update_gate.dart';
 import 'package:flutter_backtome/features/auth/data/services/session_service.dart';
+import 'package:flutter_backtome/features/auth/presentation/pages/login_page.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_home_page.dart';
 import 'package:provider/provider.dart';
@@ -59,8 +60,9 @@ Future<void> main() async {
 class BackToMeApp extends StatelessWidget {
   final AuthState authState;
   final AppUpdateService appUpdateService;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
-  const BackToMeApp({
+  BackToMeApp({
     super.key,
     required this.authState,
     required this.appUpdateService,
@@ -75,19 +77,36 @@ class BackToMeApp extends StatelessWidget {
           value: appUpdateService,
         ),
       ],
-      child: MaterialApp(
-        title: 'Back To Me',
-        debugShowCheckedModeBanner: false,
-        onGenerateRoute: AppRouter.onGenerateRoute,
-        theme: ThemeData(
-          useMaterial3: true,
-          primaryColor: const Color(0xFF1B396A),
-          scaffoldBackgroundColor: const Color(0xFFE1EDFF),
-        ),
-        home: AppUpdateGate(
-          child: PageAppGeneral(),
+      child: AppUpdateGate(
+        navigatorKey: _navigatorKey,
+        child: MaterialApp(
+          navigatorKey: _navigatorKey,
+          title: 'Back To Me',
+          debugShowCheckedModeBanner: false,
+          onGenerateRoute: AppRouter.onGenerateRoute,
+          theme: ThemeData(
+            useMaterial3: true,
+            primaryColor: const Color(0xFF1B396A),
+            scaffoldBackgroundColor: const Color(0xFFE1EDFF),
+          ),
+          home: const _RootPage(),
         ),
       ),
     );
+  }
+}
+
+class _RootPage extends StatelessWidget {
+  const _RootPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<AuthState>().user;
+
+    if (user == null) {
+      return PageLogin();
+    }
+
+    return PageAppGeneral();
   }
 }

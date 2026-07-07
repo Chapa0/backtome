@@ -24,6 +24,14 @@ class LostObject {
   // Nuevos campos
   String? uidReclamado;
   String? nombreReclamado;
+  String? custodiaEstado;
+  String? custodiaUid;
+  String? custodiaNombre;
+  String? puntoCustodiaId;
+  String? puntoCustodiaNombre;
+  double? puntoCustodiaLatitud;
+  double? puntoCustodiaLongitud;
+  DateTime? fechaRecepcionPunto;
 
   LostObject({
     required this.id,
@@ -44,7 +52,29 @@ class LostObject {
     this.longitud,
     this.uidReclamado,
     this.nombreReclamado,
+    this.custodiaEstado,
+    this.custodiaUid,
+    this.custodiaNombre,
+    this.puntoCustodiaId,
+    this.puntoCustodiaNombre,
+    this.puntoCustodiaLatitud,
+    this.puntoCustodiaLongitud,
+    this.fechaRecepcionPunto,
   });
+
+  bool get estaEnPuntoCustodia => custodiaEstado == 'en_punto';
+
+  String get custodiaLabel {
+    if (estaEnPuntoCustodia && (puntoCustodiaNombre ?? '').isNotEmpty) {
+      return puntoCustodiaNombre!;
+    }
+
+    if ((custodiaNombre ?? '').isNotEmpty) {
+      return custodiaNombre!;
+    }
+
+    return nombreEncontrado;
+  }
 
   factory LostObject.fromMap(Map<String, dynamic> data, String documentId) {
     // Parsear la lista de reclamaciones
@@ -77,6 +107,18 @@ class LostObject {
           : null,
       uidReclamado: data['uidReclamado'],
       nombreReclamado: data['nombreReclamado'],
+      custodiaEstado: data['custodiaEstado'] ?? 'con_usuario',
+      custodiaUid: data['custodiaUid'] ?? data['uidEncontrado'],
+      custodiaNombre: data['custodiaNombre'] ?? data['nombreEncontrado'],
+      puntoCustodiaId: data['puntoCustodiaId'],
+      puntoCustodiaNombre: data['puntoCustodiaNombre'],
+      puntoCustodiaLatitud: data['puntoCustodiaLatitud'] != null
+          ? (data['puntoCustodiaLatitud'] as num).toDouble()
+          : null,
+      puntoCustodiaLongitud: data['puntoCustodiaLongitud'] != null
+          ? (data['puntoCustodiaLongitud'] as num).toDouble()
+          : null,
+      fechaRecepcionPunto: _parseDate(data['fechaRecepcionPunto']),
     );
   }
 
@@ -100,6 +142,14 @@ class LostObject {
       'longitud': longitud,
       'uidReclamado': uidReclamado,
       'nombreReclamado': nombreReclamado,
+      'custodiaEstado': custodiaEstado,
+      'custodiaUid': custodiaUid,
+      'custodiaNombre': custodiaNombre,
+      'puntoCustodiaId': puntoCustodiaId,
+      'puntoCustodiaNombre': puntoCustodiaNombre,
+      'puntoCustodiaLatitud': puntoCustodiaLatitud,
+      'puntoCustodiaLongitud': puntoCustodiaLongitud,
+      'fechaRecepcionPunto': fechaRecepcionPunto,
     };
   }
 

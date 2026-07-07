@@ -4,8 +4,10 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
   buildClaim,
+  buildCustodyPointUpdate,
   buildDelivery,
   buildLostObject,
+  buildPointPayload,
   buildRejection,
 } = require("../src/logic/lost_objects");
 
@@ -32,6 +34,9 @@ test("buildLostObject creates the final object from request payload", () => {
   assert.equal(result.aprobado, false);
   assert.equal(result.estadoReclamacion, "No reclamado");
   assert.equal(result.uidEncontrado, "u1");
+  assert.equal(result.custodiaEstado, "con_usuario");
+  assert.equal(result.custodiaUid, "u1");
+  assert.equal(result.custodiaNombre, "Ana");
   assert.deepEqual(result.reclamaciones, []);
 });
 
@@ -87,10 +92,45 @@ test("buildDelivery marks selected claim delivered and others rejected", () => {
   assert.equal(result.estadoReclamacion, "Entregado");
   assert.equal(result.uidReclamado, "u2");
   assert.equal(result.nombreReclamado, "Luis");
+  assert.equal(result.custodiaEstado, "entregado");
+  assert.equal(result.custodiaUid, "u2");
   assert.deepEqual(
       result.reclamaciones.map((claim) => claim.estadoReclamacion),
       ["Rechazado", "Entregado"],
   );
+});
+
+test("buildPointPayload validates and normalizes a delivery point", () => {
+  const result = buildPointPayload({
+    nombre: "Prefectura",
+    descripcion: "Ventanilla principal",
+    tipo: "ambos",
+    latitud: 19.1,
+    longitud: -96.1,
+  });
+
+  assert.equal(result.nombre, "Prefectura");
+  assert.equal(result.tipo, "ambos");
+  assert.equal(result.activo, true);
+});
+
+test("buildCustodyPointUpdate marks object custody at a point", () => {
+  const result = buildCustodyPointUpdate(
+      {
+        id: "p1",
+        nombre: "Biblioteca",
+        tipo: "entrega",
+        activo: true,
+        latitud: 19.2,
+        longitud: -96.2,
+      },
+      "NOW",
+  );
+
+  assert.equal(result.custodiaEstado, "en_punto");
+  assert.equal(result.puntoCustodiaId, "p1");
+  assert.equal(result.puntoCustodiaNombre, "Biblioteca");
+  assert.equal(result.fechaRecepcionPunto, "NOW");
 });
 
 test("buildRejection marks an object as rejected", () => {

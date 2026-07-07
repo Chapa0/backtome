@@ -127,11 +127,30 @@ class SolicitudBackendService {
   Future<DocumentSnapshot<Map<String, dynamic>>> aprobarObjeto({
     required String solicitanteUid,
     required String objetoId,
+    String? puntoCustodiaId,
   }) {
     return crearSolicitud(
       collection: 'solicitudes_aprobar_objeto',
       solicitanteUid: solicitanteUid,
-      payload: {'objetoId': objetoId},
+      payload: {
+        'objetoId': objetoId,
+        if (puntoCustodiaId != null) 'puntoCustodiaId': puntoCustodiaId,
+      },
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> recibirObjetoEnPunto({
+    required String solicitanteUid,
+    required String objetoId,
+    required String puntoCustodiaId,
+  }) {
+    return crearSolicitud(
+      collection: 'solicitudes_recibir_objeto_en_punto',
+      solicitanteUid: solicitanteUid,
+      payload: {
+        'objetoId': objetoId,
+        'puntoCustodiaId': puntoCustodiaId,
+      },
     );
   }
 
@@ -173,6 +192,28 @@ class SolicitudBackendService {
         'objetoId': objetoId,
         'imageUrls': imageUrls,
       },
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> guardarPuntoObjetoPerdido({
+    required String solicitanteUid,
+    required Map<String, dynamic> punto,
+  }) {
+    return crearSolicitud(
+      collection: 'solicitudes_guardar_punto_objeto_perdido',
+      solicitanteUid: solicitanteUid,
+      payload: punto,
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> eliminarPuntoObjetoPerdido({
+    required String solicitanteUid,
+    required String puntoId,
+  }) {
+    return crearSolicitud(
+      collection: 'solicitudes_eliminar_punto_objeto_perdido',
+      solicitanteUid: solicitanteUid,
+      payload: {'puntoId': puntoId},
     );
   }
 }

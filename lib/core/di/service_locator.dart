@@ -14,6 +14,7 @@ import 'package:flutter_backtome/features/auth/domain/usecases/sign_out_usecase.
 import 'package:flutter_backtome/features/auth/domain/usecases/sign_in_usecase.dart';
 import 'package:flutter_backtome/core/firebase/solicitud_backend_service.dart';
 import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_object_image_storage_datasource.dart';
+import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_object_points_firestore_datasource.dart';
 import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_objects_firestore_datasource.dart';
 import 'package:flutter_backtome/features/lost_objects/data/repositories/lost_object_image_repository_impl.dart';
 import 'package:flutter_backtome/features/lost_objects/data/repositories/lost_object_repository_impl.dart';
@@ -29,6 +30,7 @@ import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_use
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_visible_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/filter_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/reject_lost_object_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/receive_lost_object_at_point_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/upload_claim_image_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/upload_lost_object_images_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/watch_lost_objects_usecase.dart';
@@ -127,6 +129,12 @@ Future<void> setupLocator() async {
         backendService: locator(),
       ),
     )
+    ..registerLazySingleton<LostObjectPointsFirestoreDataSource>(
+      () => LostObjectPointsFirestoreDataSource(
+        firestore: locator(),
+        backendService: locator(),
+      ),
+    )
     ..registerLazySingleton<LostObjectRepository>(
       () => LostObjectRepositoryImpl(dataSource: locator()),
     )
@@ -162,6 +170,9 @@ Future<void> setupLocator() async {
     )
     ..registerLazySingleton<DeliverLostObjectUseCase>(
       () => DeliverLostObjectUseCase(locator()),
+    )
+    ..registerLazySingleton<ReceiveLostObjectAtPointUseCase>(
+      () => ReceiveLostObjectAtPointUseCase(locator()),
     )
     ..registerLazySingleton<DeleteLostObjectUseCase>(
       () => DeleteLostObjectUseCase(locator()),

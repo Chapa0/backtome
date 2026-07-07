@@ -3,8 +3,10 @@
 const functions = require("firebase-functions");
 const {
   buildClaim,
+  buildCustodyPointUpdate,
   buildDelivery,
   buildLostObject,
+  buildPointPayload,
   buildRejection,
   requireString,
 } = require("../logic/lost_objects");
@@ -95,13 +97,77 @@ function createLostObjectHandlers({admin, db, bucket}) {
 
         try {
           await requireAdmin(data.solicitanteUid);
-          const objectId = requireString(data.payload && data.payload.objetoId, "objetoId");
-          await db.collection("objetos_perdidos").doc(objectId).update({
-            aprobado: true,
-          });
+          const payload = data.payload || {};
+          const objectId = requireString(payload.objetoId, "objetoId");
+          const update = {aprobado: true};
+
+          if (payload.puntoCustodiaId) {
+            const pointId = requireString(payload.puntoCustodiaId, "puntoCustodiaId");
+            const pointSnap = await db.collection("puntos_objetos_perdidos")
+                .doc(pointId)
+                .get();
+            if (!pointSnap.exists) {
+              throw new Error("Punto de entrega no existe.");
+            }
+            Object.assign(
+                update,
+                buildCustodyPointUpdate(
+                    {id: pointSnap.id, ...pointSnap.data()},
+                    timestamp.now(),
+                ),
+            );
+          }
+
+          await db.collection("objetos_perdidos").doc(objectId).update(update);
           await markOk(snapshot.ref, {objetoId: objectId}, fieldValue);
         } catch (error) {
           console.error("aprobarObjetoPerdido", error);
+          await markError(snapshot.ref, error, fieldValue);
+        }
+      });
+
+  const recibirObjetoEnPunto = functions.firestore
+      .document("solicitudes_recibir_objeto_en_punto/{solicitudId}")
+      .onCreate(async (snapshot) => {
+        const data = snapshot.data() || {};
+        if (!isPending(data)) return;
+
+        try {
+          await requireAdmin(data.solicitanteUid);
+          const payload = data.payload || {};
+          const objectId = requireString(payload.objetoId, "objetoId");
+          const pointId = requireString(payload.puntoCustodiaId, "puntoCustodiaId");
+
+          await db.runTransaction(async (transaction) => {
+            const objectRef = db.collection("objetos_perdidos").doc(objectId);
+            const pointRef = db.collection("puntos_objetos_perdidos").doc(pointId);
+            const [objectSnap, pointSnap] = await Promise.all([
+              transaction.get(objectRef),
+              transaction.get(pointRef),
+            ]);
+
+            if (!objectSnap.exists) {
+              throw new Error("Objeto perdido no existe.");
+            }
+            if (!pointSnap.exists) {
+              throw new Error("Punto de entrega no existe.");
+            }
+            if (objectSnap.data().estadoReclamacion === "Entregado") {
+              throw new Error("No puedes recibir un objeto ya entregado.");
+            }
+
+            transaction.update(
+                objectRef,
+                buildCustodyPointUpdate(
+                    {id: pointSnap.id, ...pointSnap.data()},
+                    timestamp.now(),
+                ),
+            );
+          });
+
+          await markOk(snapshot.ref, {objetoId: objectId}, fieldValue);
+        } catch (error) {
+          console.error("recibirObjetoEnPunto", error);
           await markError(snapshot.ref, error, fieldValue);
         }
       });
@@ -198,11 +264,73 @@ function createLostObjectHandlers({admin, db, bucket}) {
         }
       });
 
+  const guardarPuntoObjetoPerdido = functions.firestore
+      .document("solicitudes_guardar_punto_objeto_perdido/{solicitudId}")
+      .onCreate(async (snapshot) => {
+        const data = snapshot.data() || {};
+        if (!isPending(data)) return;
+
+        try {
+          await requireAdmin(data.solicitanteUid);
+          const payload = data.payload || {};
+          const pointData = {
+            ...buildPointPayload(payload),
+            updatedAt: fieldValue.serverTimestamp(),
+          };
+          const pointId = typeof payload.puntoId === "string" ?
+            payload.puntoId.trim() :
+            "";
+
+          let pointRef;
+          if (pointId) {
+            pointRef = db.collection("puntos_objetos_perdidos").doc(pointId);
+            await pointRef.set(pointData, {merge: true});
+          } else {
+            pointRef = await db.collection("puntos_objetos_perdidos").add({
+              ...pointData,
+              createdAt: fieldValue.serverTimestamp(),
+            });
+          }
+
+          await markOk(snapshot.ref, {puntoId: pointRef.id}, fieldValue);
+        } catch (error) {
+          console.error("guardarPuntoObjetoPerdido", error);
+          await markError(snapshot.ref, error, fieldValue);
+        }
+      });
+
+  const eliminarPuntoObjetoPerdido = functions.firestore
+      .document("solicitudes_eliminar_punto_objeto_perdido/{solicitudId}")
+      .onCreate(async (snapshot) => {
+        const data = snapshot.data() || {};
+        if (!isPending(data)) return;
+
+        try {
+          await requireAdmin(data.solicitanteUid);
+          const pointId = requireString(
+              data.payload && data.payload.puntoId,
+              "puntoId",
+          );
+          await db.collection("puntos_objetos_perdidos").doc(pointId).set({
+            activo: false,
+            updatedAt: fieldValue.serverTimestamp(),
+          }, {merge: true});
+
+          await markOk(snapshot.ref, {puntoId: pointId}, fieldValue);
+        } catch (error) {
+          console.error("eliminarPuntoObjetoPerdido", error);
+          await markError(snapshot.ref, error, fieldValue);
+        }
+      });
+
   return {
     aprobarObjetoPerdido,
     crearObjetoPerdido,
     eliminarObjetoPerdido,
+    eliminarPuntoObjetoPerdido,
     entregarObjetoPerdido,
+    guardarPuntoObjetoPerdido,
+    recibirObjetoEnPunto,
     reclamarObjetoPerdido,
     rechazarObjetoPerdido,
   };

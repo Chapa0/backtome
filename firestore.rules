@@ -21,7 +21,10 @@ service cloud.firestore {
         'solicitudes_aprobar_objeto',
         'solicitudes_rechazar_objeto',
         'solicitudes_entregar_objeto',
-        'solicitudes_eliminar_objeto'
+        'solicitudes_eliminar_objeto',
+        'solicitudes_recibir_objeto_en_punto',
+        'solicitudes_guardar_punto_objeto_perdido',
+        'solicitudes_eliminar_punto_objeto_perdido'
       ];
     }
 
@@ -57,6 +60,12 @@ service cloud.firestore {
                         || isAdmin()
                       ));
 
+      allow create, update, delete: if false;
+    }
+
+    match /puntos_objetos_perdidos/{documentId} {
+      allow read: if isSignedIn()
+                  && (resource.data.activo == true || isAdmin());
       allow create, update, delete: if false;
     }
 

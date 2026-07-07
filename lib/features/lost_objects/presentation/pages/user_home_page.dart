@@ -10,9 +10,12 @@ import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter_backtome/core/router/app_router.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object_point.dart';
+import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_object_points_firestore_datasource.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/approve_lost_object_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/deliver_lost_object_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_visible_lost_objects_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/receive_lost_object_at_point_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/reject_lost_object_usecase.dart';
 import 'package:flutter_backtome/features/claims/domain/entities/reclamacion.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
@@ -20,7 +23,6 @@ import 'package:flutter_backtome/features/claims/presentation/pages/claimed_obje
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_detail_page.dart';
 import 'package:flutter_backtome/features/users/presentation/pages/user_account_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_lost_objects_page.dart';
-import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
 
@@ -62,6 +64,10 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   mb.MapboxMap? _mapboxMap;
   mb.CircleAnnotationManager? _circleManager;
   final Map<String, mb.CircleAnnotation> _circleAnnotations = {};
+  final mb.CameraViewportState _initialMapViewport = mb.CameraViewportState(
+    center: mb.Point(coordinates: mb.Position(-96.1342, 19.1738)),
+    zoom: 12,
+  );
   bool _mapStyleLoaded = false;
 
   // ─── Panel ───────────────────────────────────────────────
@@ -225,15 +231,16 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
     // Create new circle annotations
     for (final obj in _visibleObjects) {
-      if (obj.latitud == null || obj.longitud == null) continue;
+      final lat = _markerLatitude(obj);
+      final lng = _markerLongitude(obj);
+      if (lat == null || lng == null) continue;
       final color =
           _markerColorForState(obj.estadoReclamacion ?? 'No reclamado');
       final isSelected = _selectedObject?.id == obj.id;
       try {
         final annotation = await _circleManager!.create(
           mb.CircleAnnotationOptions(
-            geometry:
-                mb.Point(coordinates: mb.Position(obj.longitud!, obj.latitud!)),
+            geometry: mb.Point(coordinates: mb.Position(lng, lat)),
             circleColor: color,
             circleStrokeColor: isSelected ? 0xFFFFFFFF : color,
             circleStrokeWidth: isSelected ? 4 : 2,
@@ -277,8 +284,12 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     final objects = _visibleObjects;
     if (_mapboxMap == null || objects.isEmpty) return;
     final pts = objects
-        .where((o) => o.latitud != null && o.longitud != null)
-        .map((o) => mb.Point(coordinates: mb.Position(o.longitud!, o.latitud!)))
+        .where((o) => _markerLatitude(o) != null && _markerLongitude(o) != null)
+        .map(
+          (o) => mb.Point(
+            coordinates: mb.Position(_markerLongitude(o)!, _markerLatitude(o)!),
+          ),
+        )
         .toList();
     if (pts.isEmpty) return;
 
@@ -295,18 +306,52 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   }
 
   Future<void> _focusOnObject(LostObject obj) async {
-    if (_mapboxMap == null || obj.latitud == null || obj.longitud == null)
-      return;
+    final lat = _markerLatitude(obj);
+    final lng = _markerLongitude(obj);
+    if (_mapboxMap == null || lat == null || lng == null) return;
     try {
       await _mapboxMap!.flyTo(
         mb.CameraOptions(
-          center:
-              mb.Point(coordinates: mb.Position(obj.longitud!, obj.latitud!)),
+          center: mb.Point(coordinates: mb.Position(lng, lat)),
           zoom: 16,
         ),
         mb.MapAnimationOptions(duration: 500),
       );
     } catch (_) {}
+  }
+
+  Future<void> _focusOnCustodyPoint(LostObject obj) async {
+    if (_mapboxMap == null ||
+        obj.puntoCustodiaLatitud == null ||
+        obj.puntoCustodiaLongitud == null) {
+      return;
+    }
+    try {
+      await _mapboxMap!.flyTo(
+        mb.CameraOptions(
+          center: mb.Point(
+            coordinates: mb.Position(
+              obj.puntoCustodiaLongitud!,
+              obj.puntoCustodiaLatitud!,
+            ),
+          ),
+          zoom: 16,
+        ),
+        mb.MapAnimationOptions(duration: 500),
+      );
+    } catch (_) {}
+  }
+
+  String _custodyDescription(LostObject obj) {
+    if (obj.estadoReclamacion == 'Entregado') {
+      return 'Entregado a ${obj.nombreReclamado ?? 'reclamante'}';
+    }
+
+    if (obj.estaEnPuntoCustodia) {
+      return 'En punto de entrega: ${obj.puntoCustodiaNombre ?? obj.custodiaLabel}';
+    }
+
+    return 'Lo tiene ${obj.custodiaLabel}';
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -517,10 +562,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           Positioned.fill(
             child: mb.MapWidget(
               key: const ValueKey('homeMap'),
-              viewport: mb.CameraViewportState(
-                center: mb.Point(coordinates: mb.Position(-96.1342, 19.1738)),
-                zoom: 12,
-              ),
+              viewport: _initialMapViewport,
               onMapCreated: _onMapCreated,
               onStyleLoadedListener: _onStyleLoaded,
             ),
@@ -819,35 +861,27 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             Stack(
               children: [
                 lostObject.imagenUrl.isNotEmpty
-                    ? GestureDetector(
-                        onTap: () => ImageViewerDialog.showNetwork(
-                          context: context,
-                          url: lostObject.imagenUrl,
-                          title: lostObject.tipoObjeto,
-                          subtitle: lostObject.lugarEncontrado,
-                        ),
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12.0)),
-                          child: CachedNetworkImage(
-                            imageUrl: lostObject.imagenUrl,
+                    ? ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(12.0)),
+                        child: CachedNetworkImage(
+                          imageUrl: lostObject.imagenUrl,
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
                             width: double.infinity,
                             height: 200,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              width: double.infinity,
-                              height: 200,
-                              color: Colors.grey[300],
-                              child: const Center(
-                                  child: CircularProgressIndicator()),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              width: double.infinity,
-                              height: 200,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.error,
-                                  color: Colors.red, size: 40),
-                            ),
+                            color: Colors.grey[300],
+                            child: const Center(
+                                child: CircularProgressIndicator()),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            width: double.infinity,
+                            height: 200,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.error,
+                                color: Colors.red, size: 40),
                           ),
                         ),
                       )
@@ -922,6 +956,9 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                   Text('Encontrado en: ${lostObject.lugarEncontrado}',
                       style: const TextStyle(fontSize: 16)),
                   const SizedBox(height: 4),
+                  Text('Custodia: ${_custodyDescription(lostObject)}',
+                      style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 4),
                   Text('Fecha: ${_formatDateTime(lostObject.timestamp)}',
                       style: TextStyle(fontSize: 16, color: Colors.grey[600])),
                 ],
@@ -934,6 +971,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   }
 
   Future<void> _approveLostObject(LostObject lostObject) async {
+    final decision = await _showApprovalDialog(lostObject);
+    /*
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -954,7 +993,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       ),
     );
 
-    if (confirmed != true) return;
+    */
+    if (decision == null) return;
 
     try {
       final currentUser = Provider.of<AuthState>(context, listen: false).user;
@@ -965,11 +1005,15 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       await locator<ApproveLostObjectUseCase>()(
         requesterId: currentUser.id,
         object: lostObject,
+        custodyPoint: decision.custodyPoint,
       );
 
       if (!mounted) return;
       setState(() {
         lostObject.aprobado = true;
+        if (decision.custodyPoint != null) {
+          _applyCustodyPoint(lostObject, decision.custodyPoint!);
+        }
       });
       _renderMarkers();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -981,6 +1025,209 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         SnackBar(content: Text('Error al aprobar el objeto: $e')),
       );
     }
+  }
+
+  Future<_ApprovalDecision?> _showApprovalDialog(LostObject lostObject) async {
+    final points = await locator<LostObjectPointsFirestoreDataSource>()
+        .fetchActiveDropOffPoints();
+
+    if (!mounted) return null;
+
+    bool receiveAtPoint = false;
+    LostObjectPoint? selectedPoint = points.isNotEmpty ? points.first : null;
+
+    return showDialog<_ApprovalDecision>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Aprobar publicacion'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¿Deseas aprobar la publicacion de "${lostObject.tipoObjeto}"?',
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  value: receiveAtPoint,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Registrar recepcion en punto'),
+                  subtitle: const Text(
+                    'Si no se marca, el objeto seguira indicado con el usuario que lo publico.',
+                  ),
+                  onChanged: points.isEmpty
+                      ? null
+                      : (value) {
+                          setDialogState(
+                            () => receiveAtPoint = value ?? false,
+                          );
+                        },
+                ),
+                if (receiveAtPoint) ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<LostObjectPoint>(
+                    value: selectedPoint,
+                    decoration: const InputDecoration(
+                      labelText: 'Punto de entrega',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: points
+                        .map(
+                          (point) => DropdownMenuItem(
+                            value: point,
+                            child: Text(point.nombre),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (point) {
+                      setDialogState(() => selectedPoint = point);
+                    },
+                  ),
+                ],
+                if (points.isEmpty)
+                  const Text(
+                    'No hay puntos de entrega activos configurados.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    _ApprovalDecision(
+                      custodyPoint: receiveAtPoint ? selectedPoint : null,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('Aprobar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _receiveLostObjectAtPoint(LostObject lostObject) async {
+    final point = await _selectDropOffPoint();
+    if (point == null) return;
+
+    try {
+      final currentUser = Provider.of<AuthState>(context, listen: false).user;
+      if (currentUser == null) {
+        throw Exception('Debes iniciar sesion.');
+      }
+
+      await locator<ReceiveLostObjectAtPointUseCase>()(
+        requesterId: currentUser.id,
+        object: lostObject,
+        custodyPoint: point,
+      );
+
+      if (!mounted) return;
+      setState(() => _applyCustodyPoint(lostObject, point));
+      _renderMarkers();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Objeto recibido en ${point.nombre}.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al registrar recepcion: $e')),
+      );
+    }
+  }
+
+  double? _markerLatitude(LostObject obj) {
+    if (obj.estaEnPuntoCustodia && obj.puntoCustodiaLatitud != null) {
+      return obj.puntoCustodiaLatitud;
+    }
+    return obj.latitud;
+  }
+
+  double? _markerLongitude(LostObject obj) {
+    if (obj.estaEnPuntoCustodia && obj.puntoCustodiaLongitud != null) {
+      return obj.puntoCustodiaLongitud;
+    }
+    return obj.longitud;
+  }
+
+  Future<LostObjectPoint?> _selectDropOffPoint() async {
+    final points = await locator<LostObjectPointsFirestoreDataSource>()
+        .fetchActiveDropOffPoints();
+
+    if (!mounted) return null;
+
+    if (points.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay puntos de entrega activos configurados.'),
+        ),
+      );
+      return null;
+    }
+
+    LostObjectPoint selectedPoint = points.first;
+
+    return showDialog<LostObjectPoint>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Registrar recepcion'),
+            content: DropdownButtonFormField<LostObjectPoint>(
+              value: selectedPoint,
+              decoration: const InputDecoration(
+                labelText: 'Punto de entrega',
+                border: OutlineInputBorder(),
+              ),
+              items: points
+                  .map(
+                    (point) => DropdownMenuItem(
+                      value: point,
+                      child: Text(point.nombre),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (point) {
+                if (point != null) {
+                  setDialogState(() => selectedPoint = point);
+                }
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(selectedPoint),
+                child: const Text('Registrar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _applyCustodyPoint(LostObject object, LostObjectPoint point) {
+    object.custodiaEstado = 'en_punto';
+    object.custodiaUid = null;
+    object.custodiaNombre = point.nombre;
+    object.puntoCustodiaId = point.id;
+    object.puntoCustodiaNombre = point.nombre;
+    object.puntoCustodiaLatitud = point.latitud;
+    object.puntoCustodiaLongitud = point.longitud;
+    object.fechaRecepcionPunto = DateTime.now();
   }
 
   Future<void> _rejectLostObject(LostObject lostObject) async {
@@ -1138,6 +1385,19 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                 Text(obj.nombreEncontrado,
                     style: const TextStyle(fontSize: 15)),
                 const SizedBox(height: 12),
+                Text('Custodia actual',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                Text(_custodyDescription(obj),
+                    style: const TextStyle(fontSize: 15)),
+                if (obj.estaEnPuntoCustodia &&
+                    obj.puntoCustodiaLatitud != null &&
+                    obj.puntoCustodiaLongitud != null)
+                  TextButton.icon(
+                    onPressed: () => _focusOnCustodyPoint(obj),
+                    icon: const Icon(Icons.location_on_outlined),
+                    label: const Text('Ver punto en el mapa'),
+                  ),
+                const SizedBox(height: 12),
                 Text('Fecha',
                     style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                 Text(DateFormat('d MMM y, HH:mm').format(obj.timestamp)),
@@ -1212,6 +1472,20 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                         onPressed: () => _approveLostObject(obj),
                       ),
                     ),
+                  if (obj.aprobado == true &&
+                      obj.rechazado != true &&
+                      !obj.estaEnPuntoCustodia &&
+                      obj.estadoReclamacion != 'Entregado') ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.inventory_2_outlined),
+                        label: const Text('Registrar recepcion en punto'),
+                        onPressed: () => _receiveLostObjectAtPoint(obj),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   _buildAdminClaimSection(obj),
                 ],
@@ -1514,6 +1788,9 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         obj.estadoReclamacion = 'Entregado';
         obj.uidReclamado = reclamacion.uidReclamante;
         obj.nombreReclamado = reclamacion.nombreReclamante;
+        obj.custodiaEstado = 'entregado';
+        obj.custodiaUid = reclamacion.uidReclamante;
+        obj.custodiaNombre = reclamacion.nombreReclamante;
       });
 
       _renderMarkers();
@@ -1634,15 +1911,6 @@ class _PageAppGeneralState extends State<PageAppGeneral>
             },
           ),
           ListTile(
-            leading: const Icon(Icons.map),
-            title: const Text('Mapa de entrega de objetos perdidos'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => LostObjectPickupPage()));
-            },
-          ),
-          ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Ajustes'),
             onTap: () {
@@ -1677,6 +1945,12 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       },
     );
   }
+}
+
+class _ApprovalDecision {
+  final LostObjectPoint? custodyPoint;
+
+  const _ApprovalDecision({this.custodyPoint});
 }
 
 extension _Padding on Widget {

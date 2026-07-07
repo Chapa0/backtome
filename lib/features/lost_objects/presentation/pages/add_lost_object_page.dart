@@ -3,6 +3,8 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_object_points_firestore_datasource.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object_point.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
@@ -14,6 +16,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import 'package:flutter_backtome/shared/widgets/location/mapbox_location_picker.dart';
 import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
+import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_points_page.dart';
 
 class AddLostObjectPage extends StatefulWidget {
   @override
@@ -363,6 +366,8 @@ class _AddLostObjectPageState extends State<AddLostObjectPage> {
                     onPressed: _selectLocationOnMap,
                     child: Text('Seleccionar ubicación en el mapa'),
                   ),
+                  SizedBox(height: 16),
+                  _buildDropOffPointsSection(),
 
                   SizedBox(height: 32),
                   ElevatedButton(
@@ -416,5 +421,78 @@ class _AddLostObjectPageState extends State<AddLostObjectPage> {
         _selectedLng = result['longitud'] as double;
       });
     }
+  }
+
+  Widget _buildDropOffPointsSection() {
+    return FutureBuilder<List<LostObjectPoint>>(
+      future: locator<LostObjectPointsFirestoreDataSource>()
+          .fetchActiveDropOffPoints(),
+      builder: (context, snapshot) {
+        final points = snapshot.data ?? [];
+
+        return Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.inventory_2_outlined, color: Color(0xFF1B396A)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Puntos para entregar el objeto',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1B396A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  LinearProgressIndicator()
+                else if (points.isEmpty)
+                  Text(
+                    'Aun no hay puntos de entrega configurados. Al guardar, el objeto quedara marcado contigo.',
+                  )
+                else ...[
+                  Text(
+                    'Al guardar, el objeto queda marcado contigo. Puedes llevarlo a uno de estos puntos para que un administrador registre la recepcion.',
+                  ),
+                  SizedBox(height: 8),
+                  ...points.take(3).map(
+                        (point) => ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.location_on_outlined),
+                          title: Text(point.nombre),
+                          subtitle: Text(point.descripcion),
+                        ),
+                      ),
+                ],
+                SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const LostObjectPointsPage(managementMode: false),
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.map_outlined),
+                  label: Text('Ver puntos en el mapa'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

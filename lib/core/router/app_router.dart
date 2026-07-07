@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/features/app_updates/presentation/pages/settings_page.dart';
-import 'package:flutter_backtome/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:flutter_backtome/features/admin/presentation/pages/user_list_page.dart';
 import 'package:flutter_backtome/features/auth/presentation/pages/create_account_page.dart';
 import 'package:flutter_backtome/features/auth/presentation/pages/login_page.dart';
 import 'package:flutter_backtome/features/claims/presentation/pages/claimed_objects_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/add_lost_object_page.dart';
+import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_points_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_home_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_lost_objects_page.dart';
@@ -21,6 +21,7 @@ class AppRouter {
   static const myLostObjects = '/lost-objects/mine';
   static const claimedObjects = '/claims';
   static const pickup = '/lost-objects/pickup';
+  static const lostObjectPoints = '/lost-objects/points';
   static const users = '/admin/users';
   static const settingsRoute = '/settings';
 
@@ -38,7 +39,7 @@ class AppRouter {
         page = PageAppGeneral();
         break;
       case adminHome:
-        page = PageAppGeneralAdmin();
+        page = PageAppGeneral();
         break;
       case account:
         page = UserAccountPage();
@@ -54,6 +55,9 @@ class AppRouter {
         break;
       case pickup:
         page = LostObjectPickupPage();
+        break;
+      case lostObjectPoints:
+        page = const LostObjectPointsPage();
         break;
       case users:
         page = UserListPage();

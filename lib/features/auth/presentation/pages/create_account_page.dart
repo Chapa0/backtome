@@ -133,11 +133,7 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => PageLogin()),
-                  (route) => false,
-                );
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
               child: const Text('Aceptar'),
             ),
@@ -145,7 +141,8 @@ class _PageCrearCuentaState extends State<PageCrearCuenta> {
         ),
       );
     } on AuthException catch (e) {
-      debugPrint('AuthException al crear cuenta: code=${e.code}, message=${e.message}');
+      debugPrint(
+          'AuthException al crear cuenta: code=${e.code}, message=${e.message}');
       _showSnackBar(e.message);
     } catch (e) {
       _showSnackBar(

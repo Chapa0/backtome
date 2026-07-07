@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_backtome/core/firebase/solicitud_backend_service.dart';
 import 'package:flutter_backtome/features/claims/domain/entities/reclamacion.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object_point.dart';
 
 class LostObjectsFirestoreDataSource {
   final FirebaseFirestore _firestore;
@@ -143,10 +144,12 @@ class LostObjectsFirestoreDataSource {
   Future<void> approveLostObject({
     required String requesterId,
     required String objectId,
+    LostObjectPoint? custodyPoint,
   }) {
     return _backendService.aprobarObjeto(
       solicitanteUid: requesterId,
       objetoId: objectId,
+      puntoCustodiaId: custodyPoint?.id,
     );
   }
 
@@ -169,6 +172,18 @@ class LostObjectsFirestoreDataSource {
       solicitanteUid: requesterId,
       objetoId: objectId,
       uidReclamante: claimantId,
+    );
+  }
+
+  Future<void> receiveLostObjectAtPoint({
+    required String requesterId,
+    required String objectId,
+    required LostObjectPoint custodyPoint,
+  }) {
+    return _backendService.recibirObjetoEnPunto(
+      solicitanteUid: requesterId,
+      objetoId: objectId,
+      puntoCustodiaId: custodyPoint.id,
     );
   }
 

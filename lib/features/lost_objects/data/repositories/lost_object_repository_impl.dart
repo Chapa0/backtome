@@ -1,6 +1,7 @@
 import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_objects_firestore_datasource.dart';
 import 'package:flutter_backtome/features/claims/domain/entities/reclamacion.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object_point.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/repositories/lost_object_repository.dart';
 
 class LostObjectRepositoryImpl implements LostObjectRepository {
@@ -99,10 +100,12 @@ class LostObjectRepositoryImpl implements LostObjectRepository {
   Future<void> approveLostObject({
     required String requesterId,
     required String objectId,
+    LostObjectPoint? custodyPoint,
   }) {
     return _dataSource.approveLostObject(
       requesterId: requesterId,
       objectId: objectId,
+      custodyPoint: custodyPoint,
     );
   }
 
@@ -127,6 +130,19 @@ class LostObjectRepositoryImpl implements LostObjectRepository {
       requesterId: requesterId,
       objectId: objectId,
       claimantId: claimantId,
+    );
+  }
+
+  @override
+  Future<void> receiveLostObjectAtPoint({
+    required String requesterId,
+    required String objectId,
+    required LostObjectPoint custodyPoint,
+  }) {
+    return _dataSource.receiveLostObjectAtPoint(
+      requesterId: requesterId,
+      objectId: objectId,
+      custodyPoint: custodyPoint,
     );
   }
 }

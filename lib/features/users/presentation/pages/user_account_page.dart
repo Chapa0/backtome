@@ -10,7 +10,6 @@ import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dar
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:flutter_backtome/features/users/domain/usecases/update_user_usecase.dart';
 import 'package:flutter_backtome/features/users/domain/usecases/upload_profile_image_usecase.dart';
-import 'package:flutter_backtome/features/auth/presentation/pages/login_page.dart'; // Import the login page
 
 import 'package:flutter_backtome/features/support/presentation/pages/support_page.dart';
 
@@ -424,10 +423,7 @@ class _UserAccountPageState extends State<UserAccountPage> {
                         authState.logout();
 
                         if (!mounted) return;
-                        navigator.pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (context) => PageLogin()),
-                          (Route<dynamic> route) => false,
-                        );
+                        navigator.popUntil((route) => route.isFirst);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,

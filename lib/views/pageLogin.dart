@@ -9,7 +9,6 @@ import '../services/usuarioRegistrado.dart';
 import 'administradorBD/usuariosBD.dart';
 import 'completarRegistro.dart';
 import 'pageCrearCuenta.dart';
-import 'administradores/AdminHomePage.dart';
 import 'usuarios/pageAppGeneral.dart';
 
 class PageLogin extends StatefulWidget {
@@ -108,7 +107,7 @@ class _PageLoginState extends State<PageLogin> {
       }
 
       final Usuario usuario =
-      Usuario.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+          Usuario.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       bool isAdmin = usuario.tipoUsuario == 'admin';
       print(
           "Usuario: ${usuario.nombre} ${usuario.apellido} (${usuario.correo}) - ${usuario.tipoUsuario}");
@@ -123,23 +122,13 @@ class _PageLoginState extends State<PageLogin> {
 
       if (!mounted) return;
 
-      if (isAdmin) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PageAppGeneralAdmin(),
-          ),
-              (route) => false,
-        );
-      } else {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PageAppGeneral(),
-          ),
-              (route) => false,
-        );
-      }
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PageAppGeneral(),
+        ),
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       switch (e.code) {
@@ -156,12 +145,11 @@ class _PageLoginState extends State<PageLogin> {
           errorMessage = "Esta cuenta ha sido deshabilitada.";
           break;
         case 'too-many-requests':
-          errorMessage =
-          "Demasiados intentos. Por favor, intenta más tarde.";
+          errorMessage = "Demasiados intentos. Por favor, intenta más tarde.";
           break;
         default:
           errorMessage =
-          "Error al iniciar sesión. Por favor, intenta de nuevo.";
+              "Error al iniciar sesión. Por favor, intenta de nuevo.";
       }
       _showSnackBar(errorMessage);
       print("Error de FirebaseAuth: $e");
@@ -227,16 +215,14 @@ class _PageLoginState extends State<PageLogin> {
         String errorMessage;
         switch (e.code) {
           case 'invalid-email':
-            errorMessage =
-            "Correo inválido. Por favor, verifica el formato.";
+            errorMessage = "Correo inválido. Por favor, verifica el formato.";
             break;
           case 'user-not-found':
-            errorMessage =
-            "No existe una cuenta con este correo.";
+            errorMessage = "No existe una cuenta con este correo.";
             break;
           default:
             errorMessage =
-            "Error al enviar el correo. Por favor, intenta de nuevo.";
+                "Error al enviar el correo. Por favor, intenta de nuevo.";
         }
         _showSnackBar(errorMessage);
         print("Error de FirebaseAuth: $e");
@@ -319,7 +305,9 @@ class _PageLoginState extends State<PageLogin> {
                       border: OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPasswordHidden ? Icons.visibility_off : Icons.visibility,
+                          _isPasswordHidden
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -343,7 +331,7 @@ class _PageLoginState extends State<PageLogin> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       padding:
-                      EdgeInsets.symmetric(horizontal: 60, vertical: 15),
+                          EdgeInsets.symmetric(horizontal: 60, vertical: 15),
                     ),
                     child: Text(
                       "Iniciar Sesión",

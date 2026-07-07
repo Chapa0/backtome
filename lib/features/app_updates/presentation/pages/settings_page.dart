@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_backtome/core/router/app_router.dart';
 import 'package:flutter_backtome/features/app_updates/data/services/app_update_service.dart';
 import 'package:flutter_backtome/features/app_updates/presentation/widgets/release_notes_view.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -12,6 +12,7 @@ class SettingsPage extends StatelessWidget {
     final service = context.watch<AppUpdateService>();
     final snapshot = service.snapshot;
     final release = snapshot.latestRelease;
+    final hasUpdate = snapshot.hasVisibleUpdate && release != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -20,174 +21,196 @@ class SettingsPage extends StatelessWidget {
         foregroundColor: Colors.white,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
-          Text(
-            'Actualizaciones',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          _InfoTile(
-            icon: Icons.phone_android,
-            title: 'Version instalada',
-            value: snapshot.installedVersion,
-          ),
-          _InfoTile(
-            icon: Icons.new_releases,
-            title: 'Ultimo release detectado',
-            value: release == null
-                ? 'Sin release detectado'
-                : '${release.name} (${release.tag})',
-          ),
-          _InfoTile(
-            icon: Icons.event,
-            title: 'Fecha del release',
-            value: _dateText(release?.publishedAt),
-          ),
-          _InfoTile(
-            icon: Icons.schedule,
-            title: 'Ultimo chequeo',
-            value: _dateText(snapshot.lastCheckedAt),
-          ),
-          _InfoTile(
-            icon: Icons.sync,
-            title: 'Estado',
-            value: _statusText(snapshot.status),
-          ),
-          if (snapshot.status == AppUpdateStatus.downloading)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: LinearProgressIndicator(
-                value: snapshot.downloadProgress > 0
-                    ? snapshot.downloadProgress
-                    : null,
-              ),
-            ),
-          if (snapshot.lastError != null && snapshot.lastError!.isNotEmpty)
-            _InfoTile(
-              icon: Icons.error_outline,
-              title: 'Ultimo error',
-              value: snapshot.lastError!,
-              valueColor: Colors.red,
-            ),
-          if (release != null && release.releaseNotes.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Notas del release',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            ReleaseNotesView(notes: release.releaseNotes),
-          ],
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              ElevatedButton.icon(
-                onPressed: snapshot.status == AppUpdateStatus.checking
-                    ? null
-                    : () => service.checkForUpdates(autoDownloadOnWifi: false),
-                icon: const Icon(Icons.search),
-                label: const Text('Buscar'),
-              ),
-              ElevatedButton.icon(
-                onPressed: release != null &&
-                        snapshot.status != AppUpdateStatus.downloading &&
-                        snapshot.status != AppUpdateStatus.downloaded
-                    ? () => service.downloadLatestRelease()
-                    : null,
-                icon: const Icon(Icons.download),
-                label: const Text('Descargar'),
-              ),
-              ElevatedButton.icon(
-                onPressed: snapshot.hasDownloadedApk
-                    ? () => service.installDownloadedApk()
-                    : null,
-                icon: const Icon(Icons.system_update_alt),
-                label: const Text('Instalar'),
-              ),
-              OutlinedButton.icon(
-                onPressed: snapshot.downloadedApkPath == null
-                    ? null
-                    : () => service.clearDownloadedApk(),
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Limpiar APK'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Logs recientes',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (snapshot.recentLogs.isEmpty)
-            const Text('Sin logs registrados.')
-          else
-            ...snapshot.recentLogs.map(
-              (log) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  log,
-                  style: Theme.of(context).textTheme.bodySmall,
+          _Section(
+            icon: Icons.location_on_outlined,
+            title: 'Puntos de objetos perdidos',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Consulta y administra los puntos donde se reciben y reclaman objetos perdidos.',
                 ),
-              ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, AppRouter.lostObjectPoints);
+                  },
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Abrir puntos'),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 16),
+          _Section(
+            icon: Icons.phone_android_rounded,
+            title: 'Version instalada',
+            child: Text(
+              snapshot.installedVersion,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _Section(
+            icon: Icons.system_update_alt_rounded,
+            title: 'Actualizacion de la app',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_messageFor(snapshot)),
+                if (hasUpdate) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Nueva version: ${release.tag}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  if (release.releaseNotes.trim().isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Novedades',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    ReleaseNotesView(notes: release.releaseNotes),
+                  ],
+                ],
+                if (snapshot.status == AppUpdateStatus.downloading) ...[
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(
+                    value: snapshot.downloadProgress > 0
+                        ? snapshot.downloadProgress
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(snapshot.downloadProgress * 100).round()}% descargado',
+                  ),
+                ],
+                if (snapshot.lastError != null &&
+                    snapshot.lastError!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'No se pudo completar la actualizacion. Intenta de nuevo.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: snapshot.status == AppUpdateStatus.checking
+                          ? null
+                          : () => service.checkForUpdates(
+                                autoDownloadOnWifi: false,
+                              ),
+                      icon: const Icon(Icons.search_rounded),
+                      label: Text(
+                        snapshot.status == AppUpdateStatus.checking
+                            ? 'Buscando...'
+                            : 'Buscar actualizacion',
+                      ),
+                    ),
+                    if (snapshot.canDownload)
+                      OutlinedButton.icon(
+                        onPressed: () => service.downloadLatestRelease(),
+                        icon: const Icon(Icons.download_rounded),
+                        label: Text(
+                          snapshot.status == AppUpdateStatus.failed
+                              ? 'Reintentar'
+                              : 'Descargar',
+                        ),
+                      ),
+                    if (snapshot.canInstall)
+                      OutlinedButton.icon(
+                        onPressed: () => service.installDownloadedApk(),
+                        icon: const Icon(Icons.install_mobile_rounded),
+                        label: const Text('Instalar'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  String _dateText(DateTime? date) {
-    if (date == null) {
-      return 'Sin fecha';
+  String _messageFor(AppUpdateSnapshot snapshot) {
+    if (snapshot.canInstall) {
+      return 'La nueva version ya esta descargada y lista para instalar.';
     }
-    return DateFormat('dd/MM/yyyy HH:mm').format(date.toLocal());
-  }
 
-  String _statusText(AppUpdateStatus status) {
-    switch (status) {
-      case AppUpdateStatus.idle:
-        return 'Sin actualizacion pendiente';
+    switch (snapshot.status) {
       case AppUpdateStatus.checking:
-        return 'Buscando actualizacion';
+        return 'Buscando una nueva version...';
       case AppUpdateStatus.available:
-        return 'Actualizacion disponible';
+        return 'Hay una nueva version disponible.';
       case AppUpdateStatus.downloading:
-        return 'Descargando';
-      case AppUpdateStatus.downloaded:
-        return 'APK listo para instalar';
+        return 'Descargando la nueva version.';
       case AppUpdateStatus.installing:
-        return 'Abriendo instalador';
+        return 'Abriendo el instalador.';
       case AppUpdateStatus.failed:
-        return 'Error';
+        return snapshot.hasVisibleUpdate
+            ? 'La actualizacion sigue disponible.'
+            : 'No se pudo buscar una actualizacion en este momento.';
+      case AppUpdateStatus.idle:
+      case AppUpdateStatus.downloaded:
+        return snapshot.hasVisibleUpdate
+            ? 'Hay una nueva version disponible.'
+            : 'Tu app esta actualizada.';
     }
   }
 }
 
-class _InfoTile extends StatelessWidget {
+class _Section extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String value;
-  final Color? valueColor;
+  final Widget child;
 
-  const _InfoTile({
+  const _Section({
     required this.icon,
     required this.title,
-    required this.value,
-    this.valueColor,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(
-        value,
-        style: TextStyle(color: valueColor),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE0E6EF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: const Color(0xFF1B396A)),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
       ),
     );
   }

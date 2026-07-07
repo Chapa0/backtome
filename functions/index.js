@@ -22,6 +22,11 @@ exports.aprobarObjetoPerdido = lostObjectHandlers.aprobarObjetoPerdido;
 exports.rechazarObjetoPerdido = lostObjectHandlers.rechazarObjetoPerdido;
 exports.entregarObjetoPerdido = lostObjectHandlers.entregarObjetoPerdido;
 exports.eliminarObjetoPerdido = lostObjectHandlers.eliminarObjetoPerdido;
+exports.recibirObjetoEnPunto = lostObjectHandlers.recibirObjetoEnPunto;
+exports.guardarPuntoObjetoPerdido =
+  lostObjectHandlers.guardarPuntoObjetoPerdido;
+exports.eliminarPuntoObjetoPerdido =
+  lostObjectHandlers.eliminarPuntoObjetoPerdido;
 
 exports.registrarUsuario = userHandlers.registrarUsuario;
 exports.actualizarUsuario = userHandlers.actualizarUsuario;

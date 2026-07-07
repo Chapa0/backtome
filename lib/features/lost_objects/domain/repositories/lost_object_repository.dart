@@ -1,5 +1,6 @@
 import 'package:flutter_backtome/features/claims/domain/entities/reclamacion.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object_point.dart';
 
 abstract class LostObjectRepository {
   Stream<List<LostObject>> watchLostObjects();
@@ -39,6 +40,7 @@ abstract class LostObjectRepository {
   Future<void> approveLostObject({
     required String requesterId,
     required String objectId,
+    LostObjectPoint? custodyPoint,
   });
 
   Future<void> rejectLostObject({
@@ -50,6 +52,12 @@ abstract class LostObjectRepository {
     required String requesterId,
     required String objectId,
     required String claimantId,
+  });
+
+  Future<void> receiveLostObjectAtPoint({
+    required String requesterId,
+    required String objectId,
+    required LostObjectPoint custodyPoint,
   });
 
   Future<void> deleteLostObject({

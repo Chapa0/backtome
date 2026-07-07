@@ -434,6 +434,21 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                             ],
                           ),
                         SizedBox(height: 16),
+                        Text(
+                          'Custodia actual:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: _primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          _custodyDescription(),
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.grey[700]),
+                        ),
+                        SizedBox(height: 16),
                         // Botón para ver la ubicación en el mapa
                         SizedBox(height: 16),
                         if (widget.lostObject.latitud != null &&
@@ -632,6 +647,19 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
         ),
       ),
     );
+  }
+
+  String _custodyDescription() {
+    final object = widget.lostObject;
+    if (object.estadoReclamacion == 'Entregado') {
+      return 'Entregado a ${object.nombreReclamado ?? 'reclamante'}';
+    }
+
+    if (object.estaEnPuntoCustodia) {
+      return 'En punto de entrega: ${object.puntoCustodiaNombre ?? object.custodiaLabel}';
+    }
+
+    return 'Lo tiene ${object.custodiaLabel}';
   }
 
   void _deleteLostObject(LostObject lostObject) async {

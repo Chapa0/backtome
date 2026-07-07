@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/features/app_updates/data/services/app_update_service.dart';
 import 'package:flutter_backtome/features/app_updates/presentation/widgets/update_dialog.dart';
-import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:provider/provider.dart';
 
 class AppUpdateGate extends StatefulWidget {
   final Widget child;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   const AppUpdateGate({
     super.key,
     required this.child,
+    required this.navigatorKey,
   });
 
   @override
@@ -19,30 +20,14 @@ class AppUpdateGate extends StatefulWidget {
 class _AppUpdateGateState extends State<AppUpdateGate> {
   bool _startupCheckStarted = false;
   bool _dialogShowing = false;
-  String? _activeUserId;
   String? _dismissedPromptKey;
   AppUpdateService? _service;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final user = Provider.of<AuthState>(context).user;
     final service = context.read<AppUpdateService>();
     _service = service;
-
-    if (user == null) {
-      _startupCheckStarted = false;
-      _activeUserId = null;
-      _dismissedPromptKey = null;
-      service.stopPeriodicChecks();
-      return;
-    }
-
-    if (_activeUserId != user.id) {
-      _activeUserId = user.id;
-      _startupCheckStarted = false;
-      _dismissedPromptKey = null;
-    }
 
     service.startPeriodicChecks();
 
@@ -73,10 +58,7 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
       final release = snapshot.latestRelease;
       final promptKey = '${release?.tag ?? 'unknown'}:${snapshot.status.name}';
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted ||
-            _dialogShowing ||
-            _dismissedPromptKey == promptKey ||
-            context.read<AuthState>().user == null) {
+        if (!mounted || _dialogShowing || _dismissedPromptKey == promptKey) {
           return;
         }
         _showUpdateDialog(promptKey);
@@ -87,10 +69,16 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
   }
 
   Future<void> _showUpdateDialog(String promptKey) async {
+    final service = _service;
+    final dialogContext = widget.navigatorKey.currentContext;
+    if (service == null || dialogContext == null || !dialogContext.mounted) {
+      return;
+    }
+
     _dialogShowing = true;
     await UpdateDialog.show(
-      context,
-      service: context.read<AppUpdateService>(),
+      dialogContext,
+      service: service,
     );
 
     if (mounted) {

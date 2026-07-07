@@ -2,17 +2,17 @@ import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_obje
 import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object_point.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/repositories/lost_object_repository.dart';
 
-class ApproveLostObjectUseCase {
+class ReceiveLostObjectAtPointUseCase {
   final LostObjectRepository _repository;
 
-  const ApproveLostObjectUseCase(this._repository);
+  const ReceiveLostObjectAtPointUseCase(this._repository);
 
   Future<void> call({
     required String requesterId,
     required LostObject object,
-    LostObjectPoint? custodyPoint,
+    required LostObjectPoint custodyPoint,
   }) {
-    return _repository.approveLostObject(
+    return _repository.receiveLostObjectAtPoint(
       requesterId: requesterId,
       objectId: object.id,
       custodyPoint: custodyPoint,

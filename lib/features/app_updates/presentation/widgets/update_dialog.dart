@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_backtome/features/app_updates/data/services/app_update_service.dart';
 import 'package:flutter_backtome/features/app_updates/presentation/widgets/release_notes_view.dart';
-import 'package:intl/intl.dart';
 
 class UpdateDialog extends StatelessWidget {
   final AppUpdateService service;
@@ -402,9 +401,7 @@ class _MetaPanel extends StatelessWidget {
             const SizedBox(height: 10),
             _MetaRow(
               label: 'Fecha',
-              value: DateFormat('d MMM yyyy, HH:mm', 'es_MX').format(
-                release!.publishedAt!.toLocal(),
-              ),
+              value: _formatDate(release!.publishedAt!),
             ),
           ],
           if (snapshot.status == AppUpdateStatus.downloading) ...[
@@ -454,6 +451,16 @@ class _MetaPanel extends StatelessWidget {
       case AppUpdateStatus.failed:
         return 'Error al actualizar';
     }
+  }
+
+  String _formatDate(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final year = local.year.toString();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$minute';
   }
 }
 

@@ -7,8 +7,8 @@ import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dar
 import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_object.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/delete_lost_object_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_user_lost_objects_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_detail_page.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
-import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
 
 class LostObjectsPage extends StatefulWidget {
   @override
@@ -129,26 +129,29 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
                 : Center(child: Text('No hay más objetos.'));
           }
           final lostObject = _lostObjects[index];
-          return Card(
-            margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            elevation: 4.0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    lostObject.imagenUrl.isNotEmpty
-                        ? GestureDetector(
-                            onTap: () => ImageViewerDialog.showNetwork(
-                              context: context,
-                              url: lostObject.imagenUrl,
-                              title: lostObject.tipoObjeto,
-                              subtitle: lostObject.lugarEncontrado,
-                            ),
-                            child: ClipRRect(
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      LostObjectDetailPage(lostObject: lostObject),
+                ),
+              );
+            },
+            child: Card(
+              margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+              elevation: 4.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    children: [
+                      lostObject.imagenUrl.isNotEmpty
+                          ? ClipRRect(
                               borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(12.0)),
                               child: CachedNetworkImage(
@@ -171,86 +174,87 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
                                       color: Colors.red, size: 40),
                                 ),
                               ),
+                            )
+                          : Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: Colors.grey[300],
+                              child: Icon(Icons.image_not_supported,
+                                  size: 50, color: Colors.grey[700]),
                             ),
-                          )
-                        : Container(
-                            width: double.infinity,
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: Icon(Icons.image_not_supported,
-                                size: 50, color: Colors.grey[700]),
+                      if (lostObject.estadoReclamacion == 'Pendiente')
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8.0, vertical: 4.0),
+                            decoration: BoxDecoration(
+                              color: Colors.yellow,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(12.0),
+                                bottomRight: Radius.circular(8.0),
+                              ),
+                            ),
+                            child: Text(
+                              'En proceso de reclamación',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                    if (lostObject.estadoReclamacion == 'Pendiente')
+                        ),
+                      // Icono de papelera para eliminar
                       Positioned(
-                        top: 0,
-                        left: 0,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 8.0, vertical: 4.0),
-                          decoration: BoxDecoration(
-                            color: Colors.yellow,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(12.0),
-                              bottomRight: Radius.circular(8.0),
-                            ),
-                          ),
-                          child: Text(
-                            'En proceso de reclamación',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        top: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: () {
+                            _confirmDeleteObject(lostObject);
+                          },
+                          child: Icon(
+                            Icons.delete,
+                            color: Colors.red,
                           ),
                         ),
-                      ),
-                    // Icono de papelera para eliminar
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () {
-                          _confirmDeleteObject(lostObject);
-                        },
-                        child: Icon(
-                          Icons.delete,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        lostObject.tipoObjeto,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: _primaryColor,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Descripción: ${lostObject.descripcion}',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Encontrado en: ${lostObject.lugarEncontrado}',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Fecha: ${_formatDateTime(lostObject.timestamp)}',
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          lostObject.tipoObjeto,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Descripción: ${lostObject.descripcion}',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Encontrado en: ${lostObject.lugarEncontrado}',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Fecha: ${_formatDateTime(lostObject.timestamp)}',
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },

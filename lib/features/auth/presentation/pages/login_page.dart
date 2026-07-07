@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/auth/presentation/pages/complete_registration_page.dart';
 import 'package:flutter_backtome/features/auth/presentation/pages/create_account_page.dart';
-import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_home_page.dart';
 
 class PageLogin extends StatefulWidget {
   final Color background;
@@ -71,6 +70,7 @@ class _PageLoginState extends State<PageLogin> {
     });
 
     try {
+      final authState = Provider.of<AuthState>(context, listen: false);
       final result = await locator<SignInUseCase>()(
         email: email,
         password: password,
@@ -92,18 +92,10 @@ class _PageLoginState extends State<PageLogin> {
         throw const AuthException('No se pudo cargar el usuario.');
       }
 
-      final authState = Provider.of<AuthState>(context, listen: false);
       authState.setUser(usuario);
 
       if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PageAppGeneral(),
-        ),
-        (route) => false,
-      );
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthException catch (e) {
       String errorMessage;
       switch (e.code) {

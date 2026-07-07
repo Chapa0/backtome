@@ -10,7 +10,10 @@ Preparar la siguiente actualizacion despues del cierre de `0.0.4+4`.
 
 ## Areas de cambio
 
-Todavia no hay areas registradas para esta version.
+- `actualizaciones_dialogo/`
+- `flujo_autenticacion/`
+- `flujo_admin_mapa/`
+- `puntos_entrega_reclamacion/`
 
 ## Notas de alcance
 

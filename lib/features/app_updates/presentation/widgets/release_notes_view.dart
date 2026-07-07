@@ -10,7 +10,7 @@ class ReleaseNotesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalized = notes.trim();
+    final normalized = _visibleNotes(notes);
     if (normalized.isEmpty) {
       return const Text('Sin notas disponibles.');
     }
@@ -22,6 +22,50 @@ class ReleaseNotesView extends StatelessWidget {
         for (final line in lines) _buildLine(context, line),
       ],
     );
+  }
+
+  String _visibleNotes(String source) {
+    final lines = source.trim().replaceAll('\r\n', '\n').split('\n');
+    final visible = <String>[];
+    var skippingStatusSection = false;
+    var skipNextGithubUrl = false;
+
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+
+      if (line.startsWith('# Release ')) {
+        continue;
+      }
+
+      if (line == '## Estado') {
+        skippingStatusSection = true;
+        continue;
+      }
+
+      if (skippingStatusSection && line.startsWith('## ')) {
+        skippingStatusSection = false;
+      }
+
+      if (skippingStatusSection) {
+        continue;
+      }
+
+      if (line == 'Release GitHub:') {
+        skipNextGithubUrl = true;
+        continue;
+      }
+
+      if (skipNextGithubUrl) {
+        skipNextGithubUrl = false;
+        if (line.startsWith('http') || line.startsWith('`http')) {
+          continue;
+        }
+      }
+
+      visible.add(rawLine);
+    }
+
+    return visible.join('\n').trim();
   }
 
   Widget _buildLine(BuildContext context, String rawLine) {
