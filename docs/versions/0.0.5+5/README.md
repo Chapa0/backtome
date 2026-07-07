@@ -2,7 +2,7 @@
 
 ## Estado
 
-Version en desarrollo activa para la siguiente actualizacion Android.
+Version cerrada. Queda como referencia historica.
 
 ## Objetivo
 

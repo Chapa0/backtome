@@ -19,8 +19,8 @@
 ## Publicacion
 
 - [x] APK release generado y renombrado
-- [ ] Release GitHub creado
-- [ ] APK adjunto al release
+- [x] Release GitHub creado
+- [x] APK adjunto al release
 - [x] Cloud Functions desplegadas
 - [x] Reglas Firestore desplegadas
 
@@ -52,3 +52,6 @@
 - `flutter build apk --release` fue ejecutado el 2026-07-07 y genero
   `build/app/outputs/flutter-apk/app-release.apk`.
 - El APK fue copiado como `build/app/outputs/flutter-apk/0.0.5+5.apk`.
+- Release GitHub `v0.0.5` creado el 2026-07-07:
+  `https://github.com/Chapa0/backtome/releases/tag/v0.0.5`.
+- APK `0.0.5+5.apk` adjunto al release `v0.0.5`.

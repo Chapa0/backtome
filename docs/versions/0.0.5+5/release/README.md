@@ -2,7 +2,10 @@
 
 ## Estado
 
-Release listo para publicacion.
+Release publicado.
+
+Release GitHub:
+`https://github.com/Chapa0/backtome/releases/tag/v0.0.5`.
 
 Esta version mejora el flujo principal de objetos perdidos, corrige el arranque
 segun el tipo de usuario y agrega una gestion mas clara de actualizaciones.
