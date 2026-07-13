@@ -2,6 +2,7 @@
 
 const functions = require("firebase-functions");
 const {
+  assertCanDeleteLostObject,
   buildClaim,
   buildCustodyPointUpdate,
   buildDelivery,
@@ -250,6 +251,8 @@ function createLostObjectHandlers({admin, db, bucket}) {
           if (!isOwner && !isAdmin) {
             throw new Error("No tienes permiso para eliminar este objeto.");
           }
+
+          assertCanDeleteLostObject(objectData);
 
           await objectRef.delete();
           await deleteFilesFromUrls(

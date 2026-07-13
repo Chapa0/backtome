@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_backtome/core/firebase/solicitud_backend_service.dart';
 import 'package:flutter_backtome/features/claims/domain/entities/reclamacion.dart';
@@ -29,6 +31,73 @@ class LostObjectsFirestoreDataSource {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map(_mapQuery);
+  }
+
+  Stream<List<LostObject>> watchVisibleLostObjects({
+    required bool isAdmin,
+    String? userId,
+  }) {
+    if (isAdmin) return watchLostObjects();
+
+    final approvedStream = _firestore
+        .collection('objetos_perdidos')
+        .where('aprobado', isEqualTo: true)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map(_mapQuery);
+
+    if (userId == null || userId.isEmpty) return approvedStream;
+
+    final ownPendingStream = _firestore
+        .collection('objetos_perdidos')
+        .where('uidEncontrado', isEqualTo: userId)
+        .where('aprobado', isEqualTo: false)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map(_mapQuery);
+
+    late final StreamController<List<LostObject>> controller;
+    StreamSubscription<List<LostObject>>? approvedSubscription;
+    StreamSubscription<List<LostObject>>? ownPendingSubscription;
+    List<LostObject>? approvedObjects;
+    List<LostObject>? ownPendingObjects;
+
+    void emitMergedObjects() {
+      if (approvedObjects == null || ownPendingObjects == null) return;
+
+      final objectsById = <String, LostObject>{
+        for (final object in approvedObjects!) object.id: object,
+        for (final object in ownPendingObjects!) object.id: object,
+      };
+      final mergedObjects = objectsById.values.toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      controller.add(mergedObjects);
+    }
+
+    controller = StreamController<List<LostObject>>(
+      onListen: () {
+        approvedSubscription = approvedStream.listen(
+          (objects) {
+            approvedObjects = objects;
+            emitMergedObjects();
+          },
+          onError: controller.addError,
+        );
+        ownPendingSubscription = ownPendingStream.listen(
+          (objects) {
+            ownPendingObjects = objects;
+            emitMergedObjects();
+          },
+          onError: controller.addError,
+        );
+      },
+      onCancel: () async {
+        await approvedSubscription?.cancel();
+        await ownPendingSubscription?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<List<LostObject>> fetchLostObjects() async {

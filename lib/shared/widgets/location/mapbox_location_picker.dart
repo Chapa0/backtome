@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
-import 'package:flutter_backtome/shared/utils/mapbox_config.dart';
 import 'package:flutter_backtome/shared/services/mapbox_geocoding_service.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
@@ -9,11 +8,15 @@ import 'package:permission_handler/permission_handler.dart';
 class MapboxLocationPicker extends StatefulWidget {
   final double? initialLatitude;
   final double? initialLongitude;
+  final bool showSearch;
+  final bool useBottomConfirmButton;
 
   const MapboxLocationPicker({
     super.key,
     this.initialLatitude,
     this.initialLongitude,
+    this.showSearch = true,
+    this.useBottomConfirmButton = false,
   });
 
   @override
@@ -30,7 +33,6 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
   final _searchFocusNode = FocusNode();
 
   List<MapboxPlace> _searchResults = [];
-  bool _isSearching = false;
   Timer? _debounce;
 
   double _selectedLat = 19.1738;
@@ -86,7 +88,8 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
   }
 
   void _onStyleLoaded(mb.StyleLoadedEventData _) async {
-    _circleManager = await _mapboxMap!.annotations.createCircleAnnotationManager();
+    _circleManager =
+        await _mapboxMap!.annotations.createCircleAnnotationManager();
     if (_hasPin) {
       _placePin(_selectedLat, _selectedLng);
     }
@@ -110,7 +113,9 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
 
     // Remove previous pin
     if (_pinAnnotation != null) {
-      try { await _circleManager!.delete(_pinAnnotation!); } catch (_) {}
+      try {
+        await _circleManager!.delete(_pinAnnotation!);
+      } catch (_) {}
     }
 
     try {
@@ -132,13 +137,12 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () async {
       if (query.trim().isEmpty) {
-        if (mounted) setState(() { _searchResults = []; _isSearching = false; });
+        if (mounted) setState(() => _searchResults = []);
         return;
       }
-      if (mounted) setState(() => _isSearching = true);
       final results = await _geocodingService.search(query);
       if (!mounted) return;
-      setState(() { _searchResults = results; _isSearching = false; });
+      setState(() => _searchResults = results);
     });
   }
 
@@ -149,7 +153,8 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
 
     _mapboxMap?.flyTo(
       mb.CameraOptions(
-        center: mb.Point(coordinates: mb.Position(place.longitud, place.latitud)),
+        center:
+            mb.Point(coordinates: mb.Position(place.longitud, place.latitud)),
         zoom: 16,
       ),
       mb.MapAnimationOptions(duration: 400),
@@ -166,7 +171,8 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
   void _onConfirm() {
     if (!_hasPin) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Manten presionado el mapa para colocar un pin.')),
+        const SnackBar(
+            content: Text('Manten presionado el mapa para colocar un pin.')),
       );
       return;
     }
@@ -198,13 +204,15 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seleccionar Ubicacion'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _onConfirm,
-            tooltip: 'Confirmar ubicacion',
-          ),
-        ],
+        actions: widget.useBottomConfirmButton
+            ? null
+            : [
+                IconButton(
+                  icon: const Icon(Icons.check),
+                  onPressed: _onConfirm,
+                  tooltip: 'Confirmar ubicacion',
+                ),
+              ],
       ),
       body: _loadingLocation
           ? const Center(child: CircularProgressIndicator())
@@ -224,92 +232,107 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
                     onLongTapListener: _onMapLongTap,
                   ),
                 ),
-                // Hint text at top when no pin placed yet
-                if (!_hasPin)
+                if (!widget.showSearch)
                   Positioned(
-                    top: 8, left: 8, right: 8,
-                    child: Material(
-                      elevation: 2,
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.white.withOpacity(0.9),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        child: Text('Manten presionado el mapa para colocar un pin',
-                            style: TextStyle(color: Colors.black87, fontSize: 14)),
+                    top: 12,
+                    left: 16,
+                    right: 16,
+                    child: IgnorePointer(
+                      child: Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            child: Text(
+                              'Manten pulsado para seleccionar una ubicacion',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                // Search bar
-                Positioned(
-                  top: _hasPin ? 8 : 52,
-                  left: 8,
-                  right: 56,
-                  child: Material(
-                    elevation: 4,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar lugar...',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      _onSearchChanged('');
-                                    },
-                                  )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                          onChanged: _onSearchChanged,
-                        ),
-                        if (_searchResults.isNotEmpty)
-                          Container(
-                            constraints: const BoxConstraints(maxHeight: 250),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: const BorderRadius.only(
-                                bottomLeft: Radius.circular(8),
-                                bottomRight: Radius.circular(8),
+                if (widget.showSearch)
+                  Positioned(
+                    top: _hasPin ? 8 : 52,
+                    left: 8,
+                    right: 56,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            decoration: InputDecoration(
+                              hintText: 'Buscar lugar...',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _onSearchChanged('');
+                                      },
+                                    )
+                                  : null,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 4,
-                                ),
-                              ],
+                              filled: true,
+                              fillColor: Colors.white,
                             ),
-                            child: ListView.separated(
-                              shrinkWrap: true,
-                              itemCount: _searchResults.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final place = _searchResults[i];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(place.nombre),
-                                  subtitle: Text(place.direccion,
-                                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  onTap: () => _onPlaceSelected(place),
-                                );
-                              },
-                            ),
+                            onChanged: _onSearchChanged,
                           ),
-                      ],
+                          if (_searchResults.isNotEmpty)
+                            Container(
+                              constraints: const BoxConstraints(maxHeight: 250),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(8),
+                                  bottomRight: Radius.circular(8),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: _searchResults.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (_, i) {
+                                  final place = _searchResults[i];
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(place.nombre),
+                                    subtitle: Text(place.direccion,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                    onTap: () => _onPlaceSelected(place),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 // My location button
                 Positioned(
                   right: 8,
@@ -321,6 +344,20 @@ class _MapboxLocationPickerState extends State<MapboxLocationPicker> {
                     child: const Icon(Icons.my_location, color: Colors.black87),
                   ),
                 ),
+                if (widget.useBottomConfirmButton && _hasPin)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 24,
+                    child: Center(
+                      child: FloatingActionButton.extended(
+                        heroTag: 'confirmLocation',
+                        onPressed: _onConfirm,
+                        icon: const Icon(Icons.check),
+                        label: const Text('Confirmar ubicacion'),
+                      ),
+                    ),
+                  ),
               ],
             ),
     );

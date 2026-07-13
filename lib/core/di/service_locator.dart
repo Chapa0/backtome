@@ -34,6 +34,7 @@ import 'package:flutter_backtome/features/lost_objects/domain/usecases/receive_l
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/upload_claim_image_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/upload_lost_object_images_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/watch_lost_objects_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/watch_visible_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/blocs/lost_objects/lost_objects_bloc.dart';
 import 'package:flutter_backtome/features/users/data/datasources/users_firestore_datasource.dart';
 import 'package:flutter_backtome/features/users/data/datasources/user_image_storage_datasource.dart';
@@ -146,6 +147,9 @@ Future<void> setupLocator() async {
     )
     ..registerLazySingleton<WatchLostObjectsUseCase>(
       () => WatchLostObjectsUseCase(locator()),
+    )
+    ..registerLazySingleton<WatchVisibleLostObjectsUseCase>(
+      () => WatchVisibleLostObjectsUseCase(locator()),
     )
     ..registerLazySingleton<FetchUserLostObjectsUseCase>(
       () => FetchUserLostObjectsUseCase(locator()),

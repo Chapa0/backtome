@@ -181,7 +181,33 @@ function buildRejection(existingObject) {
   };
 }
 
+function assertCanDeleteLostObject(existingObject) {
+  const reclamaciones = Array.isArray(existingObject.reclamaciones) ?
+    existingObject.reclamaciones :
+    [];
+  const isDelivered = existingObject.estadoReclamacion === "Entregado";
+  const isAtCustodyPoint = existingObject.custodiaEstado === "en_punto" ||
+    existingObject.fechaRecepcionPunto != null;
+  const hasClaimLifecycle = reclamaciones.length > 0 ||
+    existingObject.estadoReclamacion === "Pendiente";
+
+  if (isDelivered) {
+    throw new Error("No puedes eliminar un objeto ya entregado.");
+  }
+
+  if (isAtCustodyPoint) {
+    throw new Error(
+        "No puedes eliminar un objeto que ya esta en un punto de entrega.",
+    );
+  }
+
+  if (hasClaimLifecycle) {
+    throw new Error("No puedes eliminar un objeto con reclamaciones.");
+  }
+}
+
 module.exports = {
+  assertCanDeleteLostObject,
   buildClaim,
   buildDelivery,
   buildLostObject,

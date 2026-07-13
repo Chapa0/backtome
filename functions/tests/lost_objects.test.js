@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  assertCanDeleteLostObject,
   buildClaim,
   buildCustodyPointUpdate,
   buildDelivery,
@@ -146,5 +147,43 @@ test("buildRejection rejects delivered objects", () => {
   assert.throws(
       () => buildRejection({estadoReclamacion: "Entregado"}),
       /entregado/,
+  );
+});
+
+test("assertCanDeleteLostObject allows deleting an object without custody or claims", () => {
+  assert.doesNotThrow(() => assertCanDeleteLostObject({
+    estadoReclamacion: "No reclamado",
+    custodiaEstado: "con_usuario",
+    reclamaciones: [],
+  }));
+});
+
+test("assertCanDeleteLostObject rejects objects at a custody point", () => {
+  assert.throws(
+      () => assertCanDeleteLostObject({
+        estadoReclamacion: "No reclamado",
+        custodiaEstado: "en_punto",
+        reclamaciones: [],
+      }),
+      /punto de entrega/,
+  );
+});
+
+test("assertCanDeleteLostObject rejects objects with claims or delivered", () => {
+  assert.throws(
+      () => assertCanDeleteLostObject({
+        estadoReclamacion: "Pendiente",
+        custodiaEstado: "con_usuario",
+        reclamaciones: [{uidReclamante: "u1"}],
+      }),
+      /reclamaciones/,
+  );
+  assert.throws(
+      () => assertCanDeleteLostObject({
+        estadoReclamacion: "Entregado",
+        custodiaEstado: "entregado",
+        reclamaciones: [{uidReclamante: "u1"}],
+      }),
+      /ya entregado/,
   );
 });

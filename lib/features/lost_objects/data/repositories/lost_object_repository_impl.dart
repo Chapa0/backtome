@@ -20,6 +20,17 @@ class LostObjectRepositoryImpl implements LostObjectRepository {
   }
 
   @override
+  Stream<List<LostObject>> watchVisibleLostObjects({
+    required bool isAdmin,
+    String? userId,
+  }) {
+    return _dataSource.watchVisibleLostObjects(
+      isAdmin: isAdmin,
+      userId: userId,
+    );
+  }
+
+  @override
   Future<List<LostObject>> fetchLostObjects() => _dataSource.fetchLostObjects();
 
   @override

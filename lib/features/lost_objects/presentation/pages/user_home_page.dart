@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/add_lost_object_page.dart';
@@ -14,9 +16,9 @@ import 'package:flutter_backtome/features/lost_objects/domain/entities/lost_obje
 import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_object_points_firestore_datasource.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/approve_lost_object_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/deliver_lost_object_usecase.dart';
-import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_visible_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/receive_lost_object_at_point_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/reject_lost_object_usecase.dart';
+import 'package:flutter_backtome/features/lost_objects/domain/usecases/watch_visible_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/claims/domain/entities/reclamacion.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:flutter_backtome/features/claims/presentation/pages/claimed_objects_page.dart';
@@ -38,6 +40,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   // ─── Datos ───────────────────────────────────────────────
   List<LostObject> _lostObjects = [];
   LostObject? _selectedObject;
+  StreamSubscription<List<LostObject>>? _lostObjectsSubscription;
 
   bool _isLoading = false;
   bool _hasMore = false;
@@ -105,6 +108,7 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
   @override
   void dispose() {
+    _lostObjectsSubscription?.cancel();
     _scrollCtrl.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
@@ -116,35 +120,49 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   // DATOS DESDE FIRESTORE
   // ═══════════════════════════════════════════════════════════
 
-  Future<void> _setupLostObjectsListener({bool isRefresh = false}) async {
-    try {
-      final authState = Provider.of<AuthState>(context, listen: false);
-      final user = authState.user;
+  void _setupLostObjectsListener({bool isRefresh = false}) {
+    if (_lostObjectsSubscription != null) {
+      if (mounted) setState(() {});
+      _renderMarkers();
+      return;
+    }
 
-      if (mounted) {
-        setState(() => _isLoading = true);
-      }
+    final user = Provider.of<AuthState>(context, listen: false).user;
+    setState(() => _isLoading = true);
 
-      final objects = await locator<FetchVisibleLostObjectsUseCase>()(
-        user: user,
-        searchQuery: _searchQuery,
-        startDate: _rangeStart,
-        endDate: _rangeEnd,
-      );
+    _lostObjectsSubscription = locator<WatchVisibleLostObjectsUseCase>()(
+      user: user,
+    ).listen(
+      (objects) async {
+        if (!mounted) return;
+        setState(() {
+          _lostObjects = objects;
+          _hasMore = false;
+          _isLoading = false;
+          _syncSelectedObject(objects);
+        });
+        await _renderMarkers();
+      },
+      onError: (Object error) {
+        _showError(error.toString());
+        if (mounted) setState(() => _isLoading = false);
+      },
+    );
+  }
 
-      if (!mounted) return;
-      setState(() {
-        _lostObjects = objects;
-        _hasMore = false;
-        _isLoading = false;
-      });
-      await _renderMarkers();
-    } catch (e) {
-      _showError(e.toString());
-      if (mounted) {
-        setState(() => _isLoading = false);
+  void _syncSelectedObject(List<LostObject> objects) {
+    final selectedObject = _selectedObject;
+    if (selectedObject == null) return;
+
+    for (final object in objects) {
+      if (object.id == selectedObject.id) {
+        _selectedObject = object;
+        return;
       }
     }
+
+    _selectedObject = null;
+    _panelShowingDetail = false;
   }
 
   void _showError(String msg) {
@@ -161,35 +179,83 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     return user?.tipoUsuario == 'admin';
   }
 
+  Reclamacion? _currentUserClaim(LostObject object) {
+    final user = Provider.of<AuthState>(context, listen: false).user;
+    if (user == null) return null;
+
+    for (final claim in object.reclamaciones) {
+      if (claim.uidReclamante == user.id) return claim;
+    }
+    return null;
+  }
+
+  String _formatClaimDateTime(DateTime date) {
+    return DateFormat('dd/MM/yyyy HH:mm').format(date);
+  }
+
   List<LostObject> get _visibleObjects {
+    final filteredObjects =
+        _lostObjects.where(_matchesSearchAndDateFilters).toList();
+
     if (!_isAdminUser) {
-      return _lostObjects.where((o) => o.rechazado != true).toList();
+      return filteredObjects
+          .where((object) => object.rechazado != true)
+          .toList();
     }
 
     switch (_statusFilter) {
       case 'pendingApproval':
-        return _lostObjects
+        return filteredObjects
             .where(
                 (object) => object.aprobado == false || object.aprobado == null)
             .where((object) => object.rechazado != true)
             .toList();
       case 'rejected':
-        return _lostObjects
+        return filteredObjects
             .where((object) => object.rechazado == true)
             .toList();
       case 'approved':
-        return _lostObjects.where((object) => object.aprobado == true).toList();
+        return filteredObjects
+            .where((object) => object.aprobado == true)
+            .toList();
       case 'claimed':
-        return _lostObjects
+        return filteredObjects
             .where((object) => object.estadoReclamacion == 'Pendiente')
             .toList();
       case 'delivered':
-        return _lostObjects
+        return filteredObjects
             .where((object) => object.estadoReclamacion == 'Entregado')
             .toList();
       default:
-        return _lostObjects;
+        return filteredObjects;
     }
+  }
+
+  bool _matchesSearchAndDateFilters(LostObject object) {
+    final normalizedSearch = _searchQuery.trim().toLowerCase();
+    final matchesSearch = normalizedSearch.isEmpty ||
+        object.tipoObjeto.toLowerCase().contains(normalizedSearch) ||
+        object.descripcion.toLowerCase().contains(normalizedSearch);
+
+    if (_rangeStart == null || _rangeEnd == null) return matchesSearch;
+
+    final start = DateTime(
+      _rangeStart!.year,
+      _rangeStart!.month,
+      _rangeStart!.day,
+    );
+    final end = DateTime(
+      _rangeEnd!.year,
+      _rangeEnd!.month,
+      _rangeEnd!.day,
+      23,
+      59,
+      59,
+      999,
+    );
+    return matchesSearch &&
+        !object.timestamp.isBefore(start) &&
+        !object.timestamp.isAfter(end);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1490,7 +1556,9 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                   _buildAdminClaimSection(obj),
                 ],
                 // Boton reclamar
-                if (!isAdmin && obj.estadoReclamacion == 'No reclamado')
+                if (!isAdmin &&
+                    obj.estadoReclamacion == 'No reclamado' &&
+                    _currentUserClaim(obj) == null)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -1524,6 +1592,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
 
   Widget _buildEstadoChip(LostObject obj) {
     final estado = obj.estadoReclamacion ?? 'No reclamado';
+    final currentUserClaim = _currentUserClaim(obj);
+    final estadoLabel = currentUserClaim != null ? 'Reclamado por ti' : estado;
     Color bg;
     Color fg;
     switch (estado) {
@@ -1539,13 +1609,28 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         bg = const Color(0xFFEF5350);
         fg = Colors.white;
     }
-    return Chip(
-      label: Text(estado,
+    final chip = Chip(
+      label: Text(estadoLabel,
           style:
               TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.bold)),
       backgroundColor: bg,
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
+    );
+
+    if (currentUserClaim?.horaReclamacion == null) return chip;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        chip,
+        const SizedBox(height: 2),
+        Text(
+          _formatClaimDateTime(currentUserClaim!.horaReclamacion!),
+          style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+        ),
+      ],
     );
   }
 

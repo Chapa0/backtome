@@ -64,6 +64,28 @@ class LostObject {
 
   bool get estaEnPuntoCustodia => custodiaEstado == 'en_punto';
 
+  bool get canBeDeleted {
+    final hasClaimLifecycle = reclamaciones.isNotEmpty ||
+        estadoReclamacion == 'Pendiente' ||
+        estadoReclamacion == 'Entregado';
+    final hasCustodyLifecycle =
+        estaEnPuntoCustodia || fechaRecepcionPunto != null;
+    return !hasClaimLifecycle && !hasCustodyLifecycle;
+  }
+
+  String get deletionBlockedReason {
+    if (estadoReclamacion == 'Entregado') {
+      return 'Este objeto ya fue entregado y debe conservarse como historial.';
+    }
+    if (estaEnPuntoCustodia || fechaRecepcionPunto != null) {
+      return 'Este objeto esta en un punto de entrega y no puede eliminarse.';
+    }
+    if (reclamaciones.isNotEmpty || estadoReclamacion == 'Pendiente') {
+      return 'Este objeto tiene reclamaciones y no puede eliminarse.';
+    }
+    return '';
+  }
+
   String get custodiaLabel {
     if (estaEnPuntoCustodia && (puntoCustodiaNombre ?? '').isNotEmpty) {
       return puntoCustodiaNombre!;

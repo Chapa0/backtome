@@ -7,6 +7,11 @@ abstract class LostObjectRepository {
 
   Stream<List<LostObject>> watchApprovedLostObjects();
 
+  Stream<List<LostObject>> watchVisibleLostObjects({
+    required bool isAdmin,
+    String? userId,
+  });
+
   Future<List<LostObject>> fetchLostObjects();
 
   Future<List<LostObject>> fetchLostObjectsByOwner(String userId);

@@ -9,7 +9,11 @@ class DeleteLostObjectUseCase {
   Future<void> call({
     required String requesterId,
     required LostObject object,
-  }) {
+  }) async {
+    if (!object.canBeDeleted) {
+      throw StateError(object.deletionBlockedReason);
+    }
+
     return _repository.deleteLostObject(
       requesterId: requesterId,
       objectId: object.id,

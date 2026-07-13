@@ -98,6 +98,8 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
 
   // Función para enviar la reclamación
   Future<void> _submitClaim() async {
+    if (_isSubmitting || _hasUserClaimed()) return;
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -136,6 +138,19 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
         object: widget.lostObject,
         claim: nuevaReclamacion,
       );
+
+      // Reflejar el resultado inmediatamente en esta vista y en la vista
+      // anterior, que comparte la misma instancia de LostObject.
+      widget.lostObject.reclamaciones.add(nuevaReclamacion);
+      widget.lostObject.estadoReclamacion = 'Pendiente';
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Reclamación enviada exitosamente.')),
+        );
+      }
+      if (mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Reclamación enviada exitosamente.')),
@@ -179,10 +194,25 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   }
 
   bool _hasUserClaimed() {
-    final authState = Provider.of<AuthState>(context, listen: false);
-    final Usuario? currentUser = authState.user;
-    return widget.lostObject.reclamaciones
-        .any((reclamacion) => reclamacion.uidReclamante == currentUser?.id);
+    return _currentUserClaim() != null;
+  }
+
+  Reclamacion? _currentUserClaim() {
+    final currentUser = Provider.of<AuthState>(context, listen: false).user;
+    if (currentUser == null) return null;
+
+    for (final reclamacion in widget.lostObject.reclamaciones) {
+      if (reclamacion.uidReclamante == currentUser.id) {
+        return reclamacion;
+      }
+    }
+    return null;
+  }
+
+  String _formatClaimDateTime(DateTime date) {
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    return '${twoDigits(date.day)}/${twoDigits(date.month)}/${date.year} '
+        '${twoDigits(date.hour)}:${twoDigits(date.minute)}';
   }
 
   bool _isOwner() {
@@ -313,6 +343,7 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   Widget build(BuildContext context) {
     final authState = Provider.of<AuthState>(context);
     final Usuario? currentUser = authState.user;
+    final currentUserClaim = _currentUserClaim();
     bool isOwner = widget.lostObject.uidEncontrado == currentUser?.id;
 
     return Scaffold(
@@ -413,7 +444,8 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                         SizedBox(height: 16),
                         // Estado de la reclamación (si existe)
                         if (widget.lostObject.estadoReclamacion !=
-                            'No reclamado')
+                                'No reclamado' ||
+                            currentUserClaim != null)
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -427,10 +459,21 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                widget.lostObject.estadoReclamacion!,
+                                currentUserClaim != null
+                                    ? 'Reclamado por ti: ${currentUserClaim.estadoReclamacion}'
+                                    : widget.lostObject.estadoReclamacion!,
                                 style: TextStyle(
                                     fontSize: 16, color: Colors.grey[700]),
                               ),
+                              if (currentUserClaim?.horaReclamacion != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Hora de reclamación: ${_formatClaimDateTime(currentUserClaim!.horaReclamacion!)}',
+                                    style: TextStyle(
+                                        fontSize: 14, color: Colors.grey[700]),
+                                  ),
+                                ),
                             ],
                           ),
                         SizedBox(height: 16),
@@ -506,22 +549,29 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                       style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                     ),
                     SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        _deleteLostObject(widget.lostObject);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                    if (widget.lostObject.canBeDeleted)
+                      ElevatedButton(
+                        onPressed: () {
+                          _deleteLostObject(widget.lostObject);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: Text(
+                          'Eliminar objeto',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      )
+                    else
+                      Text(
+                        widget.lostObject.deletionBlockedReason,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                       ),
-                      child: Text(
-                        'Eliminar objeto',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
                   ],
                 ),
               )
-            else if (_hasUserClaimed())
+            else if (currentUserClaim != null)
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
@@ -663,6 +713,13 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
   }
 
   void _deleteLostObject(LostObject lostObject) async {
+    if (!lostObject.canBeDeleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(lostObject.deletionBlockedReason)),
+      );
+      return;
+    }
+
     try {
       final authState = Provider.of<AuthState>(context, listen: false);
       final currentUser = authState.user;

@@ -58,6 +58,13 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
   }
 
   void _confirmDeleteObject(LostObject lostObject) {
+    if (!lostObject.canBeDeleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(lostObject.deletionBlockedReason)),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -81,6 +88,13 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
   }
 
   void _deleteLostObject(LostObject lostObject) async {
+    if (!lostObject.canBeDeleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(lostObject.deletionBlockedReason)),
+      );
+      return;
+    }
+
     try {
       final authState = Provider.of<AuthState>(context, listen: false);
       final currentUser = authState.user;
@@ -205,19 +219,26 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
                             ),
                           ),
                         ),
-                      // Icono de papelera para eliminar
                       Positioned(
                         top: 8,
                         right: 8,
-                        child: GestureDetector(
-                          onTap: () {
-                            _confirmDeleteObject(lostObject);
-                          },
-                          child: Icon(
-                            Icons.delete,
-                            color: Colors.red,
-                          ),
-                        ),
+                        child: lostObject.canBeDeleted
+                            ? GestureDetector(
+                                onTap: () {
+                                  _confirmDeleteObject(lostObject);
+                                },
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                              )
+                            : Tooltip(
+                                message: lostObject.deletionBlockedReason,
+                                child: const Icon(
+                                  Icons.lock_outline,
+                                  color: Colors.grey,
+                                ),
+                              ),
                       ),
                     ],
                   ),
