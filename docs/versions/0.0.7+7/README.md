@@ -2,7 +2,7 @@
 
 ## Estado
 
-Version preparada para publicacion como `v0.0.7`.
+Version cerrada y publicada como `v0.0.7`. Queda como referencia historica.
 
 ## Objetivo
 

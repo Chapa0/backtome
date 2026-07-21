@@ -19,9 +19,9 @@
 ## Publicacion
 
 - [x] APK release generado y renombrado como `0.0.7+7.apk`
-- [ ] Commit y push realizados
-- [ ] Release `v0.0.7` creado en GitHub
-- [ ] APK adjunto y disponible para actualizacion
+- [x] Commit y push realizados
+- [x] Release `v0.0.7` creado en GitHub
+- [x] APK adjunto y disponible para actualizacion
 
 ## Notas de validacion
 
@@ -31,3 +31,4 @@
   acumulados principalmente en pantallas legacy.
 - APK: `versionName=0.0.7`, `versionCode=7`, firma APK v2 valida.
 - SHA-256: `C5F192FB6A48F6C7D22D8B98B255A6EB94DBA3C3EA41460B6F6A4587BADB0145`.
+- Release: `https://github.com/Chapa0/backtome/releases/tag/v0.0.7`.

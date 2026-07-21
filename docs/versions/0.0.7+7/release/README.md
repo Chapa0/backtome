@@ -2,7 +2,10 @@
 
 ## Estado
 
-Release preparado para publicacion.
+Release publicado.
+
+Release GitHub:
+`https://github.com/Chapa0/backtome/releases/tag/v0.0.7`.
 
 ## Acciones mas claras
 

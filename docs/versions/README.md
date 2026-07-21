@@ -26,9 +26,9 @@ cambios por subcarpetas, para no mezclar entregas distintas.
 
 ## Estado actual
 - Ultima version cerrada:
-  `0.0.6+6`
-- Version activa:
   `0.0.7+7`
+- Version activa:
+  `0.0.8+8`
 
 ## Estructura esperada por version
 
