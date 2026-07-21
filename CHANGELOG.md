@@ -1,5 +1,29 @@
 # Historial de versiones
 
+## 0.0.7+7 - progreso de acciones y mapas de recolección
+
+### Acciones con tiempo de espera
+
+- Las operaciones que dependen del backend muestran una pantalla de carga que
+  bloquea la interacción y la navegación hacia atrás hasta terminar.
+- La retroalimentación se aplica a aprobación, rechazo, recepción, entrega y
+  eliminación de objetos; administración de puntos; eliminación de usuarios y
+  acciones importantes de la cuenta.
+
+### Ubicaciones útiles para el usuario
+
+- La pantalla de ubicación ahora muestra un mapa interactivo en lugar de las
+  coordenadas del objeto.
+- El mapa distingue el lugar donde se encontró el objeto del punto donde puede
+  recogerse y encuadra ambas ubicaciones cuando están disponibles.
+
+### Identidad de puntos de entrega
+
+- Los objetos perdidos conservan sus marcadores circulares en el lugar del
+  hallazgo, incluso cuando están bajo custodia de un punto de entrega.
+- Los puntos de entrega usan un marcador turquesa con forma de pin e icono de
+  establecimiento, y el punto del objeto seleccionado se resalta en ámbar.
+
 ## 0.0.6+6 - sincronización y seguridad de objetos perdidos
 
 ### Sincronización en tiempo real

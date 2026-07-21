@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
+import 'package:flutter_backtome/shared/widgets/location/delivery_point_marker_image.dart';
 import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/lost_objects/data/datasources/lost_object_points_firestore_datasource.dart';
@@ -108,9 +110,13 @@ class LostObjectPointsPage extends StatelessWidget {
     if (user == null) return;
 
     try {
-      await locator<LostObjectPointsFirestoreDataSource>().savePoint(
-        requesterId: user.id,
-        point: result,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Guardando punto de entrega...',
+        action: () => locator<LostObjectPointsFirestoreDataSource>().savePoint(
+          requesterId: user.id,
+          point: result,
+        ),
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,9 +158,14 @@ class LostObjectPointsPage extends StatelessWidget {
     if (user == null) return;
 
     try {
-      await locator<LostObjectPointsFirestoreDataSource>().deactivatePoint(
-        requesterId: user.id,
-        pointId: point.id,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Desactivando punto de entrega...',
+        action: () =>
+            locator<LostObjectPointsFirestoreDataSource>().deactivatePoint(
+          requesterId: user.id,
+          pointId: point.id,
+        ),
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -180,8 +191,8 @@ class _PointsMap extends StatefulWidget {
 
 class _PointsMapState extends State<_PointsMap> {
   mb.MapboxMap? _mapboxMap;
-  mb.CircleAnnotationManager? _circleManager;
-  final List<mb.CircleAnnotation> _annotations = [];
+  mb.PointAnnotationManager? _pointManager;
+  final List<mb.PointAnnotation> _annotations = [];
 
   late final mb.CameraViewportState _initialViewport = mb.CameraViewportState(
     center: mb.Point(
@@ -206,13 +217,13 @@ class _PointsMapState extends State<_PointsMap> {
   }
 
   Future<void> _onStyleLoaded(mb.StyleLoadedEventData _) async {
-    _circleManager =
-        await _mapboxMap!.annotations.createCircleAnnotationManager();
+    _pointManager =
+        await _mapboxMap!.annotations.createPointAnnotationManager();
     await _renderPoints();
   }
 
   Future<void> _renderPoints() async {
-    final manager = _circleManager;
+    final manager = _pointManager;
     if (manager == null) return;
 
     for (final annotation in _annotations) {
@@ -223,16 +234,16 @@ class _PointsMapState extends State<_PointsMap> {
     _annotations.clear();
 
     for (final point in widget.points) {
-      final color = point.activo ? 0xFF1B396A : 0xFF9E9E9E;
+      final marker = await DeliveryPointMarkerImage.build(active: point.activo);
       final annotation = await manager.create(
-        mb.CircleAnnotationOptions(
+        mb.PointAnnotationOptions(
           geometry: mb.Point(
             coordinates: mb.Position(point.longitud, point.latitud),
           ),
-          circleColor: color,
-          circleStrokeColor: 0xFFFFFFFF,
-          circleStrokeWidth: 3,
-          circleRadius: point.activo ? 9 : 7,
+          image: marker,
+          iconAnchor: mb.IconAnchor.BOTTOM,
+          iconSize: point.activo ? 0.62 : 0.52,
+          symbolSortKey: point.activo ? 2 : 1,
         ),
       );
       _annotations.add(annotation);
@@ -265,8 +276,28 @@ class _PointsMapState extends State<_PointsMap> {
             ),
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Text(
-                'Estos puntos se usan para recibir objetos perdidos y para que los usuarios sepan donde reclamarlos.',
+              child: Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF006D77),
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(7),
+                      child: Icon(
+                        Icons.storefront_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Punto de entrega y recoleccion de objetos perdidos.',
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

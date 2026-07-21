@@ -2,7 +2,7 @@
 
 ## Estado
 
-Version en desarrollo activa para la siguiente actualizacion Android.
+Version cerrada y publicada. Queda como referencia historica.
 
 ## Objetivo
 
@@ -14,6 +14,4 @@ Todavia no hay areas registradas para esta version.
 
 ## Notas de alcance
 
-- Esta version queda abierta solo como base documental inicial.
-- No se debe crear el release `v0.0.6` hasta que el usuario confirme la
-  publicacion.
+- Release publicado como `v0.0.6`.

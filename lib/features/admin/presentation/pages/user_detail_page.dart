@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_backtome/core/di/service_locator.dart';
 import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_backtome/features/users/domain/usecases/delete_user_usecase.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 
@@ -49,10 +50,16 @@ class UserDetailPage extends StatelessWidget {
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<DeleteUserUseCase>()(
-        requesterId: currentUser.id,
-        user: usuario,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Eliminando usuario...',
+        action: () => locator<DeleteUserUseCase>()(
+          requesterId: currentUser.id,
+          user: usuario,
+        ),
       );
+
+      if (!context.mounted) return;
 
       // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(

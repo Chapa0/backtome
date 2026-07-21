@@ -25,6 +25,7 @@ import 'dart:io';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_map_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
 import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
 
 class LostObjectDetailPageAdmin extends StatefulWidget {
   final LostObject lostObject;
@@ -466,22 +467,26 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
 
                         SizedBox(height: 16),
                         // Dentro de tu método build, después de mostrar los detalles
-                        if (widget.lostObject.latitud != null &&
-                            widget.lostObject.longitud != null)
+                        if ((widget.lostObject.latitud != null &&
+                                widget.lostObject.longitud != null) ||
+                            (widget.lostObject.estaEnPuntoCustodia &&
+                                widget.lostObject.puntoCustodiaLatitud !=
+                                    null &&
+                                widget.lostObject.puntoCustodiaLongitud !=
+                                    null))
                           ElevatedButton.icon(
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => LostObjectMapPage(
-                                    latitud: widget.lostObject.latitud!,
-                                    longitud: widget.lostObject.longitud!,
+                                    lostObject: widget.lostObject,
                                   ),
                                 ),
                               );
                             },
                             icon: Icon(Icons.map, color: Colors.white),
-                            label: Text('Ver ubicación en el mapa',
+                            label: Text('Ver lugares en el mapa',
                                 style: TextStyle(color: Colors.white)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _primaryColor,
@@ -918,12 +923,17 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
           throw Exception('Debes iniciar sesion.');
         }
 
-        await locator<DeliverLostObjectUseCase>()(
-          requesterId: currentUser.id,
-          object: widget.lostObject,
-          claim: reclamacion,
+        await ActionLoadingOverlay.run<void>(
+          context,
+          message: 'Registrando entrega...',
+          action: () => locator<DeliverLostObjectUseCase>()(
+            requesterId: currentUser.id,
+            object: widget.lostObject,
+            claim: reclamacion,
+          ),
         );
 
+        if (!mounted) return;
         setState(() {
           widget.lostObject.estadoReclamacion = 'Entregado';
           widget.lostObject.uidReclamado = reclamacion.uidReclamante;
@@ -953,11 +963,16 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<ApproveLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: widget.lostObject,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Aprobando objeto...',
+        action: () => locator<ApproveLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: widget.lostObject,
+        ),
       );
 
+      if (!mounted) return;
       setState(() {
         widget.lostObject.aprobado = true;
       });
@@ -980,11 +995,16 @@ class _LostObjectDetailPageAdminState extends State<LostObjectDetailPageAdmin> {
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<RejectLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: widget.lostObject,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Rechazando objeto...',
+        action: () => locator<RejectLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: widget.lostObject,
+        ),
       );
 
+      if (!mounted) return;
       setState(() {
         widget.lostObject.rechazado = true;
         widget.lostObject.aprobado = false;

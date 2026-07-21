@@ -9,6 +9,7 @@ import 'package:flutter_backtome/features/lost_objects/domain/usecases/delete_lo
 import 'package:flutter_backtome/features/lost_objects/domain/usecases/fetch_user_lost_objects_usecase.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_detail_page.dart';
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
 
 class LostObjectsPage extends StatefulWidget {
   @override
@@ -102,9 +103,13 @@ class _LostObjectsPageState extends State<LostObjectsPage> {
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<DeleteLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: lostObject,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Eliminando objeto...',
+        action: () => locator<DeleteLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: lostObject,
+        ),
       );
 
       // Remover el objeto de la lista local

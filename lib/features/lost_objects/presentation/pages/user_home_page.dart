@@ -26,7 +26,9 @@ import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_o
 import 'package:flutter_backtome/features/users/presentation/pages/user_account_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/user_lost_objects_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
 import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
+import 'package:flutter_backtome/shared/widgets/location/delivery_point_marker_image.dart';
 
 class PageAppGeneral extends StatefulWidget {
   @override
@@ -67,6 +69,8 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   mb.MapboxMap? _mapboxMap;
   mb.CircleAnnotationManager? _circleManager;
   final Map<String, mb.CircleAnnotation> _circleAnnotations = {};
+  mb.PointAnnotationManager? _deliveryPointManager;
+  final Map<String, mb.PointAnnotation> _deliveryPointAnnotations = {};
   final mb.CameraViewportState _initialMapViewport = mb.CameraViewportState(
     center: mb.Point(coordinates: mb.Position(-96.1342, 19.1738)),
     zoom: 12,
@@ -282,10 +286,17 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     _circleManager =
         await _mapboxMap!.annotations.createCircleAnnotationManager();
     _circleManager!.tapEvents(onTap: _onCircleTapped);
+    _deliveryPointManager =
+        await _mapboxMap!.annotations.createPointAnnotationManager();
+    _deliveryPointManager!.tapEvents(onTap: _onDeliveryPointTapped);
   }
 
   Future<void> _renderMarkers() async {
-    if (!_mapStyleLoaded || _circleManager == null) return;
+    if (!_mapStyleLoaded ||
+        _circleManager == null ||
+        _deliveryPointManager == null) {
+      return;
+    }
 
     // Remove existing circle annotations
     for (final a in _circleAnnotations.values) {
@@ -294,6 +305,17 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       } catch (_) {}
     }
     _circleAnnotations.clear();
+
+    for (final annotation in _deliveryPointAnnotations.values) {
+      try {
+        await _deliveryPointManager!.delete(annotation);
+      } catch (_) {}
+    }
+    _deliveryPointAnnotations.clear();
+
+    final regularDeliveryMarker = await DeliveryPointMarkerImage.build();
+    final highlightedDeliveryMarker =
+        await DeliveryPointMarkerImage.build(highlighted: true);
 
     // Create new circle annotations
     for (final obj in _visibleObjects) {
@@ -318,6 +340,33 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         _circleAnnotations[obj.id] = annotation;
       } catch (e) {
         debugPrint('Error creating marker for ${obj.id}: $e');
+      }
+
+      if (obj.estaEnPuntoCustodia &&
+          obj.puntoCustodiaLatitud != null &&
+          obj.puntoCustodiaLongitud != null) {
+        try {
+          final deliveryAnnotation = await _deliveryPointManager!.create(
+            mb.PointAnnotationOptions(
+              geometry: mb.Point(
+                coordinates: mb.Position(
+                  obj.puntoCustodiaLongitud!,
+                  obj.puntoCustodiaLatitud!,
+                ),
+              ),
+              image: isSelected
+                  ? highlightedDeliveryMarker
+                  : regularDeliveryMarker,
+              iconAnchor: mb.IconAnchor.BOTTOM,
+              iconSize: isSelected ? 0.7 : 0.58,
+              symbolSortKey: isSelected ? 4 : 3,
+              customData: {'objectId': obj.id, 'kind': 'deliveryPoint'},
+            ),
+          );
+          _deliveryPointAnnotations[obj.id] = deliveryAnnotation;
+        } catch (e) {
+          debugPrint('Error creating delivery point for ${obj.id}: $e');
+        }
       }
     }
   }
@@ -346,6 +395,17 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     if (obj != null) _selectObject(obj);
   }
 
+  void _onDeliveryPointTapped(mb.PointAnnotation annotation) {
+    final objectId = annotation.customData?['objectId'] as String?;
+    if (objectId == null) return;
+    for (final object in _lostObjects) {
+      if (object.id == objectId) {
+        _selectObject(object);
+        return;
+      }
+    }
+  }
+
   Future<void> _fitCameraToMarkers() async {
     final objects = _visibleObjects;
     if (_mapboxMap == null || objects.isEmpty) return;
@@ -357,6 +417,20 @@ class _PageAppGeneralState extends State<PageAppGeneral>
           ),
         )
         .toList();
+    for (final object in objects) {
+      if (object.estaEnPuntoCustodia &&
+          object.puntoCustodiaLatitud != null &&
+          object.puntoCustodiaLongitud != null) {
+        pts.add(
+          mb.Point(
+            coordinates: mb.Position(
+              object.puntoCustodiaLongitud!,
+              object.puntoCustodiaLatitud!,
+            ),
+          ),
+        );
+      }
+    }
     if (pts.isEmpty) return;
 
     try {
@@ -376,6 +450,27 @@ class _PageAppGeneralState extends State<PageAppGeneral>
     final lng = _markerLongitude(obj);
     if (_mapboxMap == null || lat == null || lng == null) return;
     try {
+      if (obj.estaEnPuntoCustodia &&
+          obj.puntoCustodiaLatitud != null &&
+          obj.puntoCustodiaLongitud != null) {
+        final camera = await _mapboxMap!.cameraForCoordinatesPadding(
+          [
+            mb.Point(coordinates: mb.Position(lng, lat)),
+            mb.Point(
+              coordinates: mb.Position(
+                obj.puntoCustodiaLongitud!,
+                obj.puntoCustodiaLatitud!,
+              ),
+            ),
+          ],
+          mb.CameraOptions(),
+          mb.MbxEdgeInsets(top: 72, left: 48, bottom: 320, right: 48),
+          15,
+          null,
+        );
+        await _mapboxMap!.setCamera(camera);
+        return;
+      }
       await _mapboxMap!.flyTo(
         mb.CameraOptions(
           center: mb.Point(coordinates: mb.Position(lng, lat)),
@@ -1068,10 +1163,14 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<ApproveLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: lostObject,
-        custodyPoint: decision.custodyPoint,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Aprobando objeto...',
+        action: () => locator<ApproveLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: lostObject,
+          custodyPoint: decision.custodyPoint,
+        ),
       );
 
       if (!mounted) return;
@@ -1094,8 +1193,12 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   }
 
   Future<_ApprovalDecision?> _showApprovalDialog(LostObject lostObject) async {
-    final points = await locator<LostObjectPointsFirestoreDataSource>()
-        .fetchActiveDropOffPoints();
+    final points = await ActionLoadingOverlay.run<List<LostObjectPoint>>(
+      context,
+      message: 'Cargando puntos de entrega...',
+      action: () => locator<LostObjectPointsFirestoreDataSource>()
+          .fetchActiveDropOffPoints(),
+    );
 
     if (!mounted) return null;
 
@@ -1192,10 +1295,14 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<ReceiveLostObjectAtPointUseCase>()(
-        requesterId: currentUser.id,
-        object: lostObject,
-        custodyPoint: point,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Registrando recepcion...',
+        action: () => locator<ReceiveLostObjectAtPointUseCase>()(
+          requesterId: currentUser.id,
+          object: lostObject,
+          custodyPoint: point,
+        ),
       );
 
       if (!mounted) return;
@@ -1213,22 +1320,20 @@ class _PageAppGeneralState extends State<PageAppGeneral>
   }
 
   double? _markerLatitude(LostObject obj) {
-    if (obj.estaEnPuntoCustodia && obj.puntoCustodiaLatitud != null) {
-      return obj.puntoCustodiaLatitud;
-    }
     return obj.latitud;
   }
 
   double? _markerLongitude(LostObject obj) {
-    if (obj.estaEnPuntoCustodia && obj.puntoCustodiaLongitud != null) {
-      return obj.puntoCustodiaLongitud;
-    }
     return obj.longitud;
   }
 
   Future<LostObjectPoint?> _selectDropOffPoint() async {
-    final points = await locator<LostObjectPointsFirestoreDataSource>()
-        .fetchActiveDropOffPoints();
+    final points = await ActionLoadingOverlay.run<List<LostObjectPoint>>(
+      context,
+      message: 'Cargando puntos de entrega...',
+      action: () => locator<LostObjectPointsFirestoreDataSource>()
+          .fetchActiveDropOffPoints(),
+    );
 
     if (!mounted) return null;
 
@@ -1325,9 +1430,13 @@ class _PageAppGeneralState extends State<PageAppGeneral>
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<RejectLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: lostObject,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Rechazando objeto...',
+        action: () => locator<RejectLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: lostObject,
+        ),
       );
 
       if (!mounted) return;
@@ -1469,15 +1578,16 @@ class _PageAppGeneralState extends State<PageAppGeneral>
                 Text(DateFormat('d MMM y, HH:mm').format(obj.timestamp)),
                 const SizedBox(height: 12),
                 if (obj.latitud != null && obj.longitud != null) ...[
-                  Text('Ubicacion',
+                  Text('Mapa de ubicaciones',
                       style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                  Text(
-                      '${obj.latitud!.toStringAsFixed(6)}, ${obj.longitud!.toStringAsFixed(6)}',
-                      style: const TextStyle(fontSize: 15)),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.map),
-                    label: const Text('Centrar en el mapa'),
+                    label: Text(
+                      obj.estaEnPuntoCustodia
+                          ? 'Ver hallazgo y punto de entrega'
+                          : 'Ver lugar donde fue encontrado',
+                    ),
                     onPressed: () => _focusOnObject(obj),
                   ),
                 ],
@@ -1862,10 +1972,14 @@ class _PageAppGeneralState extends State<PageAppGeneral>
       final currentUser = Provider.of<AuthState>(context, listen: false).user;
       if (currentUser == null) throw Exception('Debes iniciar sesion.');
 
-      await locator<DeliverLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: obj,
-        claim: reclamacion,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Registrando entrega...',
+        action: () => locator<DeliverLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: obj,
+          claim: reclamacion,
+        ),
       );
 
       if (!mounted) return;

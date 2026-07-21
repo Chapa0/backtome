@@ -23,6 +23,7 @@ import 'dart:io';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_map_page.dart';
 import 'package:flutter_backtome/features/lost_objects/presentation/pages/lost_object_pickup_page.dart';
 import 'package:flutter_backtome/shared/widgets/image_viewer_dialog.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
 
 class LostObjectDetailPage extends StatefulWidget {
   final LostObject lostObject;
@@ -494,22 +495,26 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
                         SizedBox(height: 16),
                         // Botón para ver la ubicación en el mapa
                         SizedBox(height: 16),
-                        if (widget.lostObject.latitud != null &&
-                            widget.lostObject.longitud != null)
+                        if ((widget.lostObject.latitud != null &&
+                                widget.lostObject.longitud != null) ||
+                            (widget.lostObject.estaEnPuntoCustodia &&
+                                widget.lostObject.puntoCustodiaLatitud !=
+                                    null &&
+                                widget.lostObject.puntoCustodiaLongitud !=
+                                    null))
                           ElevatedButton.icon(
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => LostObjectMapPage(
-                                    latitud: widget.lostObject.latitud!,
-                                    longitud: widget.lostObject.longitud!,
+                                    lostObject: widget.lostObject,
                                   ),
                                 ),
                               );
                             },
                             icon: Icon(Icons.map, color: Colors.white),
-                            label: Text('Ver ubicación en el mapa',
+                            label: Text('Ver lugares en el mapa',
                                 style: TextStyle(color: Colors.white)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _primaryColor,
@@ -727,9 +732,13 @@ class _LostObjectDetailPageState extends State<LostObjectDetailPage> {
         throw Exception('Debes iniciar sesion.');
       }
 
-      await locator<DeleteLostObjectUseCase>()(
-        requesterId: currentUser.id,
-        object: lostObject,
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Eliminando objeto...',
+        action: () => locator<DeleteLostObjectUseCase>()(
+          requesterId: currentUser.id,
+          object: lostObject,
+        ),
       );
 
       // Mostrar un SnackBar confirmando la eliminación

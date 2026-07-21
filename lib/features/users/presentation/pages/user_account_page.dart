@@ -10,6 +10,7 @@ import 'package:flutter_backtome/features/auth/presentation/state/auth_state.dar
 import 'package:flutter_backtome/features/users/domain/entities/usuario.dart';
 import 'package:flutter_backtome/features/users/domain/usecases/update_user_usecase.dart';
 import 'package:flutter_backtome/features/users/domain/usecases/upload_profile_image_usecase.dart';
+import 'package:flutter_backtome/shared/widgets/action_loading_overlay.dart';
 
 import 'package:flutter_backtome/features/support/presentation/pages/support_page.dart';
 
@@ -72,7 +73,11 @@ class _UserAccountPageState extends State<UserAccountPage> {
 
   Future<void> _changePassword(String email) async {
     try {
-      await locator<SendPasswordResetUseCase>()(email);
+      await ActionLoadingOverlay.run<void>(
+        context,
+        message: 'Enviando correo de restablecimiento...',
+        action: () => locator<SendPasswordResetUseCase>()(email),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(
@@ -241,8 +246,12 @@ class _UserAccountPageState extends State<UserAccountPage> {
                                       _formKey.currentState!.save();
                                       currentUser?.nombre =
                                           _nombre ?? currentUser.nombre;
-                                      await _updateUser(currentUser!);
-                                      authState.updateUser(currentUser);
+                                      await ActionLoadingOverlay.run<void>(
+                                        context,
+                                        message: 'Actualizando nombre...',
+                                        action: () => _updateUser(currentUser!),
+                                      );
+                                      authState.updateUser(currentUser!);
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
@@ -299,8 +308,12 @@ class _UserAccountPageState extends State<UserAccountPage> {
                                       _formKey.currentState!.save();
                                       currentUser?.apellido =
                                           _apellido ?? currentUser.apellido;
-                                      await _updateUser(currentUser!);
-                                      authState.updateUser(currentUser);
+                                      await ActionLoadingOverlay.run<void>(
+                                        context,
+                                        message: 'Actualizando apellido...',
+                                        action: () => _updateUser(currentUser!),
+                                      );
+                                      authState.updateUser(currentUser!);
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
@@ -419,7 +432,11 @@ class _UserAccountPageState extends State<UserAccountPage> {
                     ElevatedButton(
                       onPressed: () async {
                         final navigator = Navigator.of(context);
-                        await locator<SignOutUseCase>()();
+                        await ActionLoadingOverlay.run<void>(
+                          context,
+                          message: 'Cerrando sesion...',
+                          action: () => locator<SignOutUseCase>()(),
+                        );
                         authState.logout();
 
                         if (!mounted) return;
